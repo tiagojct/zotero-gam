@@ -4,6 +4,7 @@
 import { buildIndex } from "./lib/index.mjs";
 import { currentKey } from "./lib/citekey.mjs";
 import { parseUris } from "./lib/obsidian.mjs";
+import { expandHome } from "./lib/paths.mjs";
 import { listMarkdown, vaultExists } from "./vault.mjs";
 
 const { setTimeout, clearTimeout } = ChromeUtils.importESModule("resource://gre/modules/Timer.sys.mjs");
@@ -12,6 +13,7 @@ const PREF = "extensions.gam.";
 const MIN_REFRESH_MS = 30000;
 
 let Zotero = null;
+let homeDir = "";
 let notifierID = null;
 let lastRefresh = 0;
 let running = null;
@@ -23,9 +25,6 @@ function pref(name) {
   return Zotero.Prefs.get(PREF + name, true);
 }
 
-function expandHome(path) {
-  return path === "~" || path.startsWith("~/") ? PathUtils.join(PathUtils.homeDir, path.slice(2)) : path;
-}
 
 export const Gam = {
   id: null,
@@ -37,7 +36,7 @@ export const Gam = {
   cleanups: [],
 
   prefs: {
-    vault: () => expandHome(String(pref("vault") || "~/quarterdeck/powerslave")),
+    vault: () => expandHome(String(pref("vault") || "~/quarterdeck/powerslave"), homeDir),
     vaultName: () => String(pref("vaultName") || "") || PathUtils.filename(Gam.prefs.vault()),
     literatureFolder: () => String(pref("literatureFolder") || "sub-sub/literature").replace(/^\/+|\/+$/g, ""),
     exclude: () => String(pref("exclude") ?? "").split(",").map((s) => s.trim()).filter(Boolean),
@@ -68,8 +67,9 @@ export const Gam = {
     return { citekey, itemKey: item.key, doi: field("DOI") };
   },
 
-  async startup({ id, rootURI, Zotero: z }) {
+  async startup({ id, rootURI, Zotero: z, homeDir: home }) {
     Zotero = z;
+    homeDir = home;
     this.id = id;
     this.rootURI = rootURI;
     notifierID = Zotero.Notifier.registerObserver({
@@ -127,6 +127,8 @@ export const Gam = {
         this.log(this.state.error);
       }
       await this.loadLinks();
+      Zotero.debug(`gam: index ${this.state.index ? this.state.index.citekeys().size : 0} literature notes, `
+        + `${this.state.links.size} items with obsidian links`);
       this.notifyRefresh();
     })();
     try {
@@ -140,7 +142,8 @@ export const Gam = {
   async loadLinks() {
     const rows = await Zotero.DB.queryAsync(
       "SELECT parentItemID AS parentID, note FROM itemNotes WHERE parentItemID IS NOT NULL "
-      + "AND note LIKE '%obsidian://open%' AND itemID NOT IN (SELECT itemID FROM deletedItems)",
+      + "AND note LIKE ? AND itemID NOT IN (SELECT itemID FROM deletedItems)",
+      ["%obsidian://open%"],
     );
     const links = new Map();
     for (const row of rows || []) {

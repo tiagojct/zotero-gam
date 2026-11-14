@@ -8,7 +8,8 @@ async function startup({ id, version, rootURI }, reason) {
   const manifestURI = Services.io.newURI(rootURI + "manifest.json");
   chromeHandle = aomStartup.registerChrome(manifestURI, [["content", "gam", rootURI + "content/"]]);
   ({ Gam } = ChromeUtils.importESModule("chrome://gam/content/gam.mjs"));
-  await Gam.startup({ id, version, rootURI, Zotero });
+  const homeDir = Services.dirsvc.get("Home", Ci.nsIFile).path;
+  await Gam.startup({ id, version, rootURI, Zotero, homeDir });
   await Zotero.PreferencePanes.register({
     pluginID: id,
     src: rootURI + "content/preferences.xhtml",
