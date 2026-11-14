@@ -1,8 +1,8 @@
 // Frontmatter parser for the YAML subset that Sub-Sub writes.
 // Pure module: no Zotero or browser globals.
 
-const KEY_LINE = /^([A-Za-z0-9_][A-Za-z0-9_.-]*)\s*:\s*(.*)$/;
-const LIST_ITEM = /^\s+-\s*(.*)$/;
+const KEY_LINE = /^([A-Za-z0-9_][A-Za-z0-9_.-]*)\s*:\s*([^]*)$/;
+const LIST_ITEM = /^\s*-\s+([^]*)$|^\s*-$/;
 
 function unquote(raw) {
   const s = raw.trim();
@@ -39,7 +39,7 @@ export function parseFrontmatter(text) {
     if (!line.trim() || line.trimStart().startsWith("#")) continue;
     const item = listKey && line.match(LIST_ITEM);
     if (item) {
-      data[listKey].push(unquote(item[1]));
+      data[listKey].push(unquote(item[1] ?? ""));
       continue;
     }
     const m = line.match(KEY_LINE);

@@ -31,6 +31,8 @@ export function buildIndex(files, { literatureFolder }) {
   for (const f of files) {
     const path = nfc(f.path);
     paths.add(path);
+    // A file in an excluded folder exists (a link to it is not "missing"), but its references do not count.
+    if (f.excluded) continue;
     const refs = extractRefs(f.text);
     for (const k of refs.citekeys) add(refsByCitekey, k, path);
     for (const k of refs.itemKeys) add(refsByItemKey, k, path);

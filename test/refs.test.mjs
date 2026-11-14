@@ -42,3 +42,7 @@ test("extractRefs reads a DOI used as markdown link text and in backticks", () =
 test("extractRefs keeps parentheses inside a DOI", () => {
   assert.deepEqual([...extractRefs("doi 10.1016/S0140-6736(20)30183-5 here").dois], ["10.1016/s0140-6736(20)30183-5"]);
 });
+
+test("extractRefs reads Zotero links to group items", () => {
+  assert.deepEqual([...extractRefs("zotero://select/groups/4321/items/ABCDEFGH").itemKeys], ["ABCDEFGH"]);
+});

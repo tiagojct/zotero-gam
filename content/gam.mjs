@@ -6,6 +6,7 @@ import { currentKey } from "./lib/citekey.mjs";
 import { parseUris } from "./lib/obsidian.mjs";
 import { expandHome } from "./lib/paths.mjs";
 import { columnSignature, isNoteEvent } from "./lib/state.mjs";
+import { makeRefresher } from "./lib/refresher.mjs";
 import { registerColumn } from "./ui/column.mjs";
 import { registerPane } from "./ui/pane.mjs";
 import { registerMenus } from "./ui/menu.mjs";
@@ -20,8 +21,8 @@ const MIN_REFRESH_MS = 30000;
 let Zotero = null;
 let homeDir = "";
 let notifierID = null;
-let lastRefresh = 0;
-let running = null;
+let refresher = null;
+let prefObservers = [];
 let linksTimer = null;
 const logged = new Set();
 const focusHandlers = new Map();
@@ -92,6 +93,12 @@ export const Gam = {
     registerColumn(this);
     registerPane(this);
     registerMenus(this);
+    refresher = makeRefresher(() => this.scan(), { minInterval: MIN_REFRESH_MS });
+    // A changed setting takes effect at once.
+    prefObservers = ["vault", "vaultName", "literatureFolder", "exclude"].map((name) =>
+      Zotero.Prefs.registerObserver(PREF + name, () => {
+        this.refresh({ force: true }).catch((e) => Zotero.logError(e));
+      }, true));
     // On ADDON_ENABLE the main window is already open, and Zotero does not call onMainWindowLoad for it.
     for (const win of Zotero.getMainWindows()) {
       if (win.ZoteroPane) this.onMainWindowLoad(win);
@@ -102,6 +109,9 @@ export const Gam = {
   shutdown() {
     if (notifierID) Zotero.Notifier.unregisterObserver(notifierID);
     notifierID = null;
+    for (const symbol of prefObservers) Zotero.Prefs.unregisterObserver(symbol);
+    prefObservers = [];
+    refresher = null;
     for (const win of [...focusHandlers.keys()]) this.onMainWindowUnload(win);
     focusHandlers.clear();
     for (const fn of this.cleanups.splice(0)) {
@@ -131,32 +141,26 @@ export const Gam = {
   },
 
   /** Read the vault and the obsidian links again. At most once each 30 s unless force is set. */
-  async refresh({ force = false } = {}) {
-    if (running) return running;
-    if (!force && Date.now() - lastRefresh < MIN_REFRESH_MS) return;
-    lastRefresh = Date.now();
-    running = (async () => {
-      const vault = this.prefs.vault();
-      const problem = await checkVault(vault);
-      if (!problem) {
-        const files = await listMarkdown(vault, this.prefs.exclude());
-        this.state.index = buildIndex(files, { literatureFolder: this.prefs.literatureFolder() });
-        this.state.error = null;
-      } else {
-        this.state.index = null;
-        this.state.error = problem;
-        this.log(problem);
-      }
-      await this.loadLinks();
-      Zotero.debug(`gam: index ${this.state.index ? this.state.index.citekeys().size : 0} literature notes, `
-        + `${this.state.links.size} items with obsidian links`);
-      this.notifyRefresh();
-    })();
-    try {
-      await running;
-    } finally {
-      running = null;
+  async refresh(opts = {}) {
+    return refresher?.(opts);
+  },
+
+  async scan() {
+    const vault = this.prefs.vault();
+    const problem = await checkVault(vault);
+    if (!problem) {
+      const files = await listMarkdown(vault, this.prefs.exclude());
+      this.state.index = buildIndex(files, { literatureFolder: this.prefs.literatureFolder() });
+      this.state.error = null;
+    } else {
+      this.state.index = null;
+      this.state.error = problem;
+      this.log(problem);
     }
+    await this.loadLinks();
+    Zotero.debug(`gam: index ${this.state.index ? this.state.index.citekeys().size : 0} literature notes, `
+      + `${this.state.links.size} items with obsidian links`);
+    this.notifyRefresh();
   },
 
   /** The obsidian:// links of the child notes, by parent item ID. */

@@ -4,7 +4,7 @@
 import { yearOf } from "./citekey.mjs";
 
 export function yamlString(s) {
-  return JSON.stringify(String(s ?? "").replace(/\r?\n/g, " "));
+  return JSON.stringify(String(s ?? "").replace(/\r\n|[\r\n\u0085\u2028\u2029]/g, " "));
 }
 
 /** A citekey as YAML: plain when it is a safe plain word, else quoted. */
@@ -19,7 +19,7 @@ function authorName(c) {
 }
 
 /** data is the Zotero item JSON (item.toJSON()). */
-export function noteFromItem(data, { citekey, itemKey, today }) {
+export function noteFromItem(data, { citekey, itemKey, today, libraryPath = "library" }) {
   const authors = (data.creators ?? []).filter((c) => c.creatorType === "author").map(authorName).filter(Boolean);
   const year = yearOf(data);
   const venue = data.publicationTitle || data.bookTitle || data.publisher || "";
@@ -34,7 +34,7 @@ export function noteFromItem(data, { citekey, itemKey, today }) {
   if (venue) lines.push(`venue: ${yamlString(venue)}`);
   if (data.DOI) lines.push(`doi: ${yamlString(data.DOI)}`);
   lines.push(
-    `zotero: zotero://select/library/items/${itemKey}`,
+    `zotero: zotero://select/${libraryPath}/items/${itemKey}`,
     "status: to-read",
     "tags: []",
     `created: ${today}`,

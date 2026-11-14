@@ -70,6 +70,7 @@ export async function createNote(Gam, item, { open = Gam.prefs.openAfterCreate()
     vaultName: Gam.prefs.vaultName(),
     literatureFolder: Gam.prefs.literatureFolder(),
     today: localDate(),
+    libraryPath: item.library?.libraryType === "group" ? `groups/${item.library.groupID}` : "library",
   });
   const abs = joinPath(Gam.prefs.vault(), plan.relPath);
 

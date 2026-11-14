@@ -51,3 +51,13 @@ test("NFD file name matches an NFC citekey", () => {
   assert.ok(i2.noteFor({ citekey: "gonçalves2020" }));
   assert.ok(i2.hasPath("sub-sub/literature/gonçalves2020.md"));
 });
+
+test("files in excluded folders count as existing paths but not as references", () => {
+  const i = buildIndex([
+    { path: "archive/old.md", text: "", excluded: true },
+    { path: "archive/cites.md", text: "[[cai2026]]", excluded: true },
+    { path: "sub-sub/literature/cai2026.md", text: "" },
+  ], { literatureFolder: "sub-sub/literature" });
+  assert.ok(i.hasPath("archive/old.md"));
+  assert.deepEqual(i.citedIn({ citekey: "cai2026" }), []);
+});

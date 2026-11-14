@@ -34,7 +34,15 @@ function render(Gam, { doc, body, item, setSectionSummary }) {
     return;
   }
   const state = noteState(Gam, item);
-  const create = () => Gam.actions.createNote?.(item).then(() => render(Gam, { doc, body, item, setSectionSummary }));
+  // The button is off while the note is made, so a second click cannot start a second write.
+  const create = (event) => {
+    const b = event?.target;
+    if (b) b.disabled = true;
+    return Gam.actions.createNote?.(item).finally(() => {
+      if (b?.isConnected) b.disabled = false;
+      if (body.isConnected) render(Gam, { doc, body, item, setSectionSummary });
+    });
+  };
 
   if (state.kind === "note") {
     const n = state.note;
@@ -72,7 +80,8 @@ function renderCitedIn(Gam, { doc, body, item }) {
 export function registerPane(Gam) {
   const Zotero = Gam.Zotero;
   const icon = Gam.rootURI + "content/icons/gam.svg";
-  let last = null;
+  // Every shown section (library and reader panes), by body element.
+  const shown = new Map();
   const paneID = Zotero.ItemPaneManager.registerSection({
     paneID: PANE_ID,
     pluginID: Gam.id,
@@ -82,8 +91,11 @@ export function registerPane(Gam) {
       setEnabled(!!item?.isRegularItem());
     },
     onRender: (props) => {
-      last = props;
+      shown.set(props.body, props);
       render(Gam, props);
+    },
+    onDestroy: ({ body }) => {
+      shown.delete(body);
     },
     onAsyncRender: async (props) => {
       renderCitedIn(Gam, props);
@@ -91,12 +103,19 @@ export function registerPane(Gam) {
   });
   if (paneID) {
     Gam.onRefresh.push(() => {
-      if (last?.body?.isConnected && last.item) {
-        render(Gam, last);
-        renderCitedIn(Gam, last);
+      for (const [body, props] of shown) {
+        if (!body.isConnected) {
+          shown.delete(body);
+        } else if (props.item) {
+          render(Gam, props);
+          renderCitedIn(Gam, props);
+        }
       }
     });
-    Gam.cleanups.push(() => Zotero.ItemPaneManager.unregisterSection(paneID));
+    Gam.cleanups.push(() => {
+      shown.clear();
+      Zotero.ItemPaneManager.unregisterSection(paneID);
+    });
   }
   return paneID;
 }

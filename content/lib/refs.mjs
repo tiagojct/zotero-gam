@@ -3,7 +3,7 @@
 
 const WIKILINK = /\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]/g;
 const PANDOC = /(?<![\p{L}\p{N}_.@])@([\p{L}\p{N}][\p{L}\p{N}_:.-]*)/gu;
-const ZOTERO = /zotero:\/\/select\/[^/\s]+\/items\/([A-Z0-9]{8})/g;
+const ZOTERO = /zotero:\/\/select\/(?:library|users\/\d+|groups\/\d+)\/items\/([A-Z0-9]{8})/g;
 const DOI = /10\.\d{4,9}\/[^\s"<>\]`]+/gi;
 const NO_SPACE = /^\S+$/;
 

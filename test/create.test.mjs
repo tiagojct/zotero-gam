@@ -86,3 +86,11 @@ test("createNotes refreshes once for several items", async () => {
   assert.equal(r.made, 2);
   assert.equal(s.refreshes(), 1);
 });
+
+test("an item in a group library gets the groups form of the Zotero link", async () => {
+  const s = setup({ citationKey: "grp2026" });
+  s.item.library = { editable: true, libraryType: "group", groupID: 4321 };
+  await createNote(s.Gam, s.item);
+  const text = fs.readFileSync(path.join(s.vault, "lit/grp2026.md"), "utf8");
+  assert.match(text, /^zotero: zotero:\/\/select\/groups\/4321\/items\/ABCDEFGH$/m);
+});

@@ -35,6 +35,22 @@ test("listMarkdown skips hidden and excluded folders", async () => {
     fs.mkdirSync(path.join(v, path.dirname(f)), { recursive: true });
     fs.writeFileSync(path.join(v, f), "t");
   }
-  const files = (await listMarkdown(v, ["archive"])).map((f) => f.path).sort();
+  const files = (await listMarkdown(v, ["archive"])).filter((f) => !f.excluded).map((f) => f.path).sort();
   assert.deepEqual(files, ["a.md", "x/d.md"]);
+});
+
+test("listMarkdown does not follow symbolic links to folders", async () => {
+  const v = tempVault();
+  fs.mkdirSync(path.join(v, "a"));
+  fs.writeFileSync(path.join(v, "a", "n.md"), "t");
+  fs.symlinkSync(v, path.join(v, "a", "loop"));
+  const files = (await listMarkdown(v, [])).map((f) => f.path);
+  assert.deepEqual(files, ["a/n.md"]);
+});
+
+test("listMarkdown lists files in excluded folders as excluded, without their text", async () => {
+  const v = tempVault();
+  fs.mkdirSync(path.join(v, "archive"));
+  fs.writeFileSync(path.join(v, "archive", "old.md"), "[[x]]");
+  assert.deepEqual(await listMarkdown(v, ["archive"]), [{ path: "archive/old.md", text: "", excluded: true }]);
 });

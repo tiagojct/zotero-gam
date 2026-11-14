@@ -54,3 +54,13 @@ test("a citekey that is not plain is quoted", () => {
   assert.match(n, /^citekey: "2020"$/m);
   assert.match(noteFromItem({ title: "T", creators: [] }, { citekey: "smith_2020-a", itemKey: "AAAAAAAA", today: "2026-11-14" }), /^citekey: smith_2020-a$/m);
 });
+
+test("line and paragraph separators in a title become spaces", () => {
+  const n = noteFromItem({ title: "a b c\u0085d", creators: [] }, { citekey: "x", itemKey: "AAAAAAAA", today: "2026-11-14" });
+  assert.equal(parseFrontmatter(n).data.title, "a b c d");
+});
+
+test("a group item gets the groups form of the Zotero link", () => {
+  const n = noteFromItem({ title: "T", creators: [] }, { citekey: "x", itemKey: "AAAAAAAA", today: "2026-11-14", libraryPath: "groups/123" });
+  assert.equal(parseFrontmatter(n).data.zotero, "zotero://select/groups/123/items/AAAAAAAA");
+});

@@ -15,9 +15,10 @@ export function localDate(d = new Date()) {
 /**
  * json: the Zotero item JSON. existingKey: the item's citekey or null.
  * taken: the citekeys of the library and the vault (for a new key).
+ * libraryPath: "library" for the user library, "groups/<id>" for a group.
  * Returns {citekey, newKey, relPath, text, uri, childHtml}. relPath is from the vault root.
  */
-export function planNote({ json, itemKey, existingKey, taken, vaultName, literatureFolder, today }) {
+export function planNote({ json, itemKey, existingKey, taken, vaultName, literatureFolder, today, libraryPath = "library" }) {
   const citekey = existingKey || uniqueKey(baseKey(json), taken);
   const relPath = joinPath(literatureFolder, `${citekey}.md`).replace(/^\//, "");
   const uri = buildUri(vaultName, relPath);
@@ -25,7 +26,7 @@ export function planNote({ json, itemKey, existingKey, taken, vaultName, literat
     citekey,
     newKey: !existingKey,
     relPath,
-    text: noteFromItem(json, { citekey, itemKey, today }),
+    text: noteFromItem(json, { citekey, itemKey, today, libraryPath }),
     uri,
     childHtml: childNoteHtml(CHILD_NOTE_TEXT, uri, citekey),
   };

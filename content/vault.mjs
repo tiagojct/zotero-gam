@@ -15,16 +15,26 @@ export async function checkVault(root) {
   return null;
 }
 
+/** True when path is a symbolic link (IOUtils.stat follows links). */
+function isSymlink(path) {
+  try {
+    return IOUtils.getFile(path).isSymlink();
+  } catch {
+    return false;
+  }
+}
+
 /**
  * All .md files under root, as [{path, text}] with path relative to root and "/".
- * Hidden folders and the folders in exclude (paths relative to root) are skipped.
+ * Hidden folders and symbolic links to folders are skipped. Files in the folders of exclude
+ * (paths relative to root) are listed as {path, text: "", excluded: true}, without reading them.
  */
 export async function listMarkdown(root, exclude = []) {
   const skip = exclude.map((e) => e.trim().replace(/^\/+|\/+$/g, "")).filter(Boolean);
   const out = [];
   const prefix = root.endsWith("/") ? root : root + "/";
 
-  async function walk(dir) {
+  async function walk(dir, excluded) {
     let children;
     try {
       children = await IOUtils.getChildren(dir);
@@ -42,9 +52,13 @@ export async function listMarkdown(root, exclude = []) {
         return;
       }
       if (info.type === "directory") {
-        if (skip.some((s) => rel === s || rel.startsWith(s + "/"))) return;
-        await walk(abs);
+        if (isSymlink(abs)) return;
+        await walk(abs, excluded || skip.some((s) => rel === s || rel.startsWith(s + "/")));
       } else if (name.endsWith(".md")) {
+        if (excluded) {
+          out.push({ path: rel, text: "", excluded: true });
+          return;
+        }
         try {
           out.push({ path: rel, text: await IOUtils.readUTF8(abs) });
         } catch {
@@ -54,7 +68,7 @@ export async function listMarkdown(root, exclude = []) {
     }));
   }
 
-  await walk(root);
+  await walk(root, false);
   return out;
 }
 

@@ -49,3 +49,11 @@ test("firstSection returns the first lines under the heading", () => {
 test("firstSection stops at the next heading", () => {
   assert.equal(firstSection("## Summary\nA.\n## Key points\nB.\n", "## Summary", 5), "A.");
 });
+
+test("lists with no indent are read", () => {
+  assert.deepEqual(parseFrontmatter("---\ntags:\n- a\n- b\nstatus: read\n---\n").data, { tags: ["a", "b"], status: "read" });
+});
+
+test("a value with U+2028 or U+2029 is still read", () => {
+  assert.equal(parseFrontmatter("---\ntitle: a b\n---\n").data.title, "a b");
+});
