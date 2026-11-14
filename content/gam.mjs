@@ -89,13 +89,17 @@ export const Gam = {
     registerColumn(this);
     registerPane(this);
     registerMenus(this);
+    // On ADDON_ENABLE the main window is already open, and Zotero does not call onMainWindowLoad for it.
+    for (const win of Zotero.getMainWindows()) {
+      if (win.ZoteroPane) this.onMainWindowLoad(win);
+    }
     await this.refresh({ force: true });
   },
 
   shutdown() {
     if (notifierID) Zotero.Notifier.unregisterObserver(notifierID);
     notifierID = null;
-    for (const [win, handler] of focusHandlers) win.removeEventListener("focus", handler);
+    for (const win of [...focusHandlers.keys()]) this.onMainWindowUnload(win);
     focusHandlers.clear();
     for (const fn of this.cleanups.splice(0)) {
       try {
@@ -109,6 +113,7 @@ export const Gam = {
   },
 
   onMainWindowLoad(win) {
+    if (focusHandlers.has(win)) return;
     win.MozXULElement.insertFTLIfNeeded("gam.ftl");
     const handler = () => this.refresh().catch((e) => Zotero.logError(e));
     win.addEventListener("focus", handler);
