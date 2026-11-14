@@ -55,6 +55,7 @@ export async function createNote(Gam, item, { open = Gam.prefs.openAfterCreate()
   const Zotero = Gam.Zotero;
   if (!item?.isRegularItem()) throw new Error("Notes can only be made for regular items.");
   if (!Gam.state.index) throw new Error(Gam.state.error || "The vault index is not ready.");
+  if (item.isInTrash?.()) throw new Error("This item is in the trash. Nothing was written.");
   if (item.library && !item.library.editable || item.isEditable && !item.isEditable()) {
     throw new Error("This item cannot be changed (read-only library or item). Nothing was written.");
   }

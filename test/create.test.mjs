@@ -121,3 +121,11 @@ test("createNotes counts the note when Obsidian does not open", async () => {
   assert.deepEqual(r.errors, []);
   assert.match(messages.join("\n"), /^1 note\(s\) created\.\nObsidian did not open the note: Handler not found$/);
 });
+
+test("an item in the trash is refused before any file is written", async () => {
+  const s = setup({ citationKey: "gamtest2026" });
+  s.item.isInTrash = () => true;
+  await assert.rejects(createNote(s.Gam, s.item), /in the trash/);
+  assert.equal(fs.readdirSync(s.vault).length, 0);
+  assert.equal(s.saved.length, 0);
+});
