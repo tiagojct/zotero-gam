@@ -36,6 +36,7 @@ Zotero Settings > gam:
 
 - The vault folder must contain the `.obsidian` folder.
 - The literature folder is a folder inside the vault. It cannot be hidden or contain "..".
+- gam does not follow links to folders (symbolic links). Notes in a linked folder do not show in Zotero.
 - gam reads the vault again when you return to the Zotero window (at most once each 30 seconds) and one second after a setting changes. It reads only the files that changed. Tools > Refresh gam index reads all files again.
 
 ## Development

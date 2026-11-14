@@ -109,7 +109,7 @@ export async function createFile(absPath, text) {
 }
 
 /**
- * rel (a folder path inside root, with "/") with the case and Unicode form of the folders that exist.
+ * rel (a folder path inside root, with "/") with the case of the folders that exist, in NFC.
  * On a disk that ignores case, "Literature" opens "literature", but the scan lists the real name.
  * Parts that do not exist stay as they are.
  */
@@ -126,7 +126,8 @@ export async function realFolderCase(root, rel) {
     }
     const name = matchName(names, parts[i]);
     if (!name) return [...out, ...parts.slice(i)].join("/");
-    out.push(name);
+    // The case on disk, in NFC: the index compares NFC paths, and the obsidian:// links stay NFC.
+    out.push(name.normalize("NFC"));
     dir = joinPath(dir, name);
   }
   return out.join("/");

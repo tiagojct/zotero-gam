@@ -111,3 +111,10 @@ test("realFolderCase gives the case of the folders on disk, and keeps parts that
   assert.equal(await realFolderCase(v, "sub-sub/New/x"), "sub-sub/New/x");
   assert.equal(await realFolderCase(v, "sub-sub/literature"), "sub-sub/literature");
 });
+
+test("realFolderCase keeps the NFC form of a name on disk", async () => {
+  const v = tempVault();
+  fs.mkdirSync(path.join(v, "ciência"));
+  const r = await realFolderCase(v, "Ciência");
+  assert.equal(r, "ciência");
+});

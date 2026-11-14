@@ -24,6 +24,9 @@ let Zotero = null;
 let homeDir = "";
 let notifierID = null;
 let refresher = null;
+// The number of the current startup. A scan of an earlier startup (still running at shutdown) stops
+// before it changes the state or the cache.
+let run = 0;
 let prefObservers = [];
 let settingsChanged = null;
 let linksTimer = null;
@@ -101,7 +104,8 @@ export const Gam = {
     registerColumn(this);
     registerPane(this);
     registerMenus(this);
-    refresher = makeRefresher(() => this.scan(), { minInterval: MIN_REFRESH_MS });
+    const thisRun = ++run;
+    refresher = makeRefresher(() => this.scan(thisRun), { minInterval: MIN_REFRESH_MS });
     // A changed setting takes effect one second after the last change.
     settingsChanged = makeDebounce(() => {
       this.refresh({ force: true }).catch((e) => Zotero.logError(e));
@@ -120,6 +124,7 @@ export const Gam = {
     notifierID = null;
     for (const symbol of prefObservers) Zotero.Prefs.unregisterObserver(symbol);
     prefObservers = [];
+    run += 1;
     settingsChanged?.cancel();
     settingsChanged = null;
     refresher = null;
@@ -170,17 +175,22 @@ export const Gam = {
     cacheReset = true;
   },
 
-  async scan() {
+  async scan(thisRun = run) {
+    const stopped = () => thisRun !== run;
+    if (stopped()) return;
     const vault = this.prefs.vault();
     const problem = (await checkVault(vault)) || checkLiteratureFolder(this.prefs.literatureFolder());
+    if (stopped()) return;
     if (!problem) {
       if (cacheReset || vault !== cacheVault) indexCache.clear();
       cacheReset = false;
       cacheVault = vault;
       const literatureFolder = await realFolderCase(vault, this.prefs.literatureFolder());
+      if (stopped()) return;
       const files = await listMarkdown(vault, this.prefs.exclude(), {
         isCurrent: (path, stamp) => isCached(indexCache, path, stamp, literatureFolder),
       });
+      if (stopped()) return;
       this.state.index = buildIndex(files, { literatureFolder, cache: indexCache });
       this.state.literatureFolder = literatureFolder;
       this.state.error = null;
@@ -190,20 +200,22 @@ export const Gam = {
       this.state.error = problem;
       this.log(problem);
     }
-    await this.loadLinks();
+    await this.loadLinks(thisRun);
+    if (stopped()) return;
     Zotero.debug(`gam: index ${this.state.index ? this.state.index.citekeys().size : 0} literature notes, `
       + `${this.state.links.size} items with obsidian links`);
     this.notifyRefresh();
   },
 
   /** The obsidian:// links of the child notes, by parent item ID. */
-  async loadLinks() {
+  async loadLinks(thisRun = run) {
     const rows = await Zotero.DB.queryAsync(
       "SELECT itemID, parentItemID AS parentID, note FROM itemNotes WHERE parentItemID IS NOT NULL "
       + "AND note LIKE ? AND itemID NOT IN (SELECT itemID FROM deletedItems) "
       + "AND parentItemID NOT IN (SELECT itemID FROM deletedItems)",
       ["%obsidian://open%"],
     );
+    if (thisRun !== run) return;
     const links = new Map();
     const ids = new Set();
     for (const row of rows || []) {

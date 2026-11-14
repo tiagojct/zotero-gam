@@ -70,11 +70,15 @@ export function buildIndex(files, { literatureFolder, cache = null }) {
     if (f.excluded) continue;
     seen.add(path);
     let entry;
-    if (f.text == null && isCached(cache, path, f.stamp, literatureFolder)) {
+    if (f.text != null) {
+      entry = { stamp: f.stamp, litPrefix, ...analyze(path, f.text, litPrefix) };
+      if (cache && f.stamp != null) cache.set(path, entry);
+    } else if (isCached(cache, path, f.stamp, literatureFolder)) {
       entry = cache.get(path);
     } else {
-      entry = { stamp: f.stamp, litPrefix, ...analyze(path, f.text ?? "", litPrefix) };
-      if (cache && f.stamp != null && f.text != null) cache.set(path, entry);
+      // No text and no cached data (the cache was cleared during the scan): the file exists,
+      // but its data comes with the next scan. Made-up data would be wrong.
+      continue;
     }
     const { refs, note } = entry;
     for (const k of refs.citekeys) add(refsByCitekey, k, path);

@@ -86,3 +86,9 @@ test("cache: a new stamp, another literature folder or a removed file is not cac
   assert.equal(ix.citedIn({ citekey: "cai2026" }).length, 0);
   assert.deepEqual([...cache.keys()], ["sub-sub/literature/cai2026.md"]);
 });
+
+test("cache: a file with no text and no cache entry adds no made-up data", () => {
+  const ix = buildIndex([{ path: "sub-sub/literature/x2020.md", stamp: "a", text: null }], { literatureFolder: "sub-sub/literature", cache: new Map() });
+  assert.equal(ix.noteFor({ citekey: "x2020" }), null);
+  assert.ok(ix.hasPath("sub-sub/literature/x2020.md"));
+});
