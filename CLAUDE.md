@@ -22,3 +22,11 @@ Zotero 10 plugin. It shows the Obsidian vault facts of each Zotero item and crea
 2. Write the absolute path of this repo into the file `gam@tiagojct.eu` in `~/Library/Application Support/Zotero/Profiles/<profile>/extensions/`.
 3. In `prefs.js` of that profile, remove the lines `extensions.lastAppBuildId` and `extensions.lastAppVersion`.
 4. Start Zotero. After a code change, restart Zotero.
+
+## Release
+
+1. Change the version in manifest.json.
+2. Add the new version to updates.json (version and update_link).
+3. Commit, then push a tag `v<version>`. The release workflow checks the tag, runs the tests, builds the .xpi and attaches it to a GitHub release.
+
+Zotero reads update_url (the raw updates.json on main) to find updates. This works only when the repo and its releases are public.
