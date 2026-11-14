@@ -20,7 +20,8 @@ export function installFakeIO() {
     async readUTF8(p) {
       return fs.readFileSync(p, "utf8");
     },
-    getFile(p) {
+    // Like the real IOUtils.getFile: a Promise of an nsIFile.
+    async getFile(p) {
       return { isSymlink: () => fs.lstatSync(p).isSymbolicLink() };
     },
     async exists(p) {

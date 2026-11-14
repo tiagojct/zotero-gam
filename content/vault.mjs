@@ -16,10 +16,10 @@ export async function checkVault(root) {
   return null;
 }
 
-/** True when path is a symbolic link (IOUtils.stat follows links). */
-function isSymlink(path) {
+/** True when path is a symbolic link (IOUtils.stat follows links). IOUtils.getFile returns a Promise. */
+async function isSymlink(path) {
   try {
-    return IOUtils.getFile(path).isSymlink();
+    return (await IOUtils.getFile(path)).isSymlink();
   } catch {
     return false;
   }
@@ -53,7 +53,7 @@ export async function listMarkdown(root, exclude = []) {
         return;
       }
       if (info.type === "directory") {
-        if (isSymlink(abs)) return;
+        if (await isSymlink(abs)) return;
         await walk(abs, excluded || skip.some((s) => rel === s || rel.startsWith(s + "/")));
       } else if (name.endsWith(".md")) {
         if (excluded) {
