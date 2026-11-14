@@ -32,3 +32,5 @@ Zotero 10 plugin. It shows the Obsidian vault facts of each Zotero item and crea
 3. Commit, then push a tag `v<version>`. The release workflow checks the tag, runs the tests, builds the .xpi and attaches it to a GitHub release.
 
 Zotero reads update_url (the raw updates.json on main) to find updates. This works only when the repo and its releases are public.
+
+Repo: github.com/tiagojct/zotero-gam (tiagojct/gam is an older, archived project).
