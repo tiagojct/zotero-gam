@@ -21,7 +21,9 @@ Zotero 10 plugin. It shows the Obsidian vault facts of each Zotero item and crea
 1. Close Zotero.
 2. Write the absolute path of this repo into the file `gam@tiagojct.eu` in `~/Library/Application Support/Zotero/Profiles/<profile>/extensions/`.
 3. In `prefs.js` of that profile, remove the lines `extensions.lastAppBuildId` and `extensions.lastAppVersion`.
-4. Start Zotero. After a code change, restart Zotero.
+4. Start Zotero. Zotero turns off a plugin added this way: turn gam on in Tools > Plugins.
+5. After a code change, restart Zotero. Turning the plugin off and on is not enough: Zotero keeps the old modules in memory.
+6. For a debug log, start Zotero with `/Applications/Zotero.app/Contents/MacOS/zotero -ZoteroDebugText > log 2>&1`. gam lines start with "gam:".
 
 ## Release
 
