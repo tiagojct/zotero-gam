@@ -5,6 +5,8 @@ import { buildIndex } from "./lib/index.mjs";
 import { currentKey } from "./lib/citekey.mjs";
 import { parseUris } from "./lib/obsidian.mjs";
 import { expandHome } from "./lib/paths.mjs";
+import { registerColumn } from "./ui/column.mjs";
+import { registerPane } from "./ui/pane.mjs";
 import { listMarkdown, vaultExists } from "./vault.mjs";
 
 const { setTimeout, clearTimeout } = ChromeUtils.importESModule("resource://gre/modules/Timer.sys.mjs");
@@ -34,6 +36,8 @@ export const Gam = {
   onRefresh: [],
   // Functions called in shutdown() (for example, to unregister the column).
   cleanups: [],
+  // Actions that Task 8 adds (createNote).
+  actions: {},
 
   prefs: {
     vault: () => expandHome(String(pref("vault") || "~/quarterdeck/powerslave"), homeDir),
@@ -77,6 +81,8 @@ export const Gam = {
         if (["add", "modify", "delete", "trash", "refresh"].includes(event)) this.scheduleLinks();
       },
     }, ["item"], "gam");
+    registerColumn(this);
+    registerPane(this);
     await this.refresh({ force: true });
   },
 

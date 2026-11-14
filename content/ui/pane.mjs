@@ -1,0 +1,102 @@
+// The "Vault" section of the item pane.
+
+import { noteState, openInObsidian } from "./common.mjs";
+
+const PANE_ID = "gam-vault";
+
+function el(doc, tag, text, style) {
+  const e = doc.createElement(tag);
+  if (text) e.textContent = text;
+  if (style) e.setAttribute("style", style);
+  return e;
+}
+
+function link(doc, Gam, path) {
+  const a = el(doc, "div", path.replace(/\.md$/, ""), "cursor: pointer; color: var(--accent-blue, #2e6ed1); margin: 2px 0;");
+  a.title = "Open in Obsidian";
+  a.addEventListener("click", () => openInObsidian(Gam, path));
+  return a;
+}
+
+function button(doc, label, onClick) {
+  const b = el(doc, "button", label, "margin-top: 6px; margin-inline-end: 6px;");
+  b.addEventListener("click", onClick);
+  return b;
+}
+
+function render(Gam, { doc, body, item, setSectionSummary }) {
+  body.replaceChildren();
+  const box = el(doc, "div", null, "padding: 2px 0; user-select: text;");
+  body.append(box);
+  if (Gam.state.error) {
+    box.append(el(doc, "div", Gam.state.error));
+    setSectionSummary?.("");
+    return;
+  }
+  const state = noteState(Gam, item);
+  const create = () => Gam.actions.createNote?.(item).then(() => render(Gam, { doc, body, item, setSectionSummary }));
+
+  if (state.kind === "note") {
+    const n = state.note;
+    box.append(el(doc, "div", n.title, "font-weight: 600;"));
+    const tags = n.tags.filter((t) => t.startsWith("topic/"));
+    box.append(el(doc, "div", [n.status || "no status", tags.join(", ")].filter(Boolean).join(" · "), "opacity: 0.8;"));
+    if (n.summary) box.append(el(doc, "div", n.summary, "margin-top: 6px; white-space: pre-wrap;"));
+    box.append(button(doc, "Open in Obsidian", () => openInObsidian(Gam, n.path)));
+    setSectionSummary?.(n.status || "");
+  } else if (state.kind === "missing") {
+    box.append(el(doc, "div", `The linked note does not exist: ${state.missingPath}`));
+    if (Gam.actions.createNote) box.append(button(doc, "Create note", create));
+    setSectionSummary?.("missing");
+  } else {
+    box.append(el(doc, "div", "No literature note."));
+    if (Gam.actions.createNote) box.append(button(doc, "Create note", create));
+    setSectionSummary?.("");
+  }
+
+  const cited = el(doc, "div", null, "margin-top: 8px;");
+  cited.dataset.gamCited = "1";
+  box.append(cited);
+}
+
+function renderCitedIn(Gam, { doc, body, item }) {
+  const cited = body.querySelector("[data-gam-cited]");
+  if (!cited || !Gam.state.index) return;
+  const paths = Gam.state.index.citedIn(Gam.itemInfo(item));
+  cited.replaceChildren();
+  if (!paths.length) return;
+  cited.append(el(doc, "div", "Cited in", "font-weight: 600;"));
+  for (const p of paths) cited.append(link(doc, Gam, p));
+}
+
+export function registerPane(Gam) {
+  const Zotero = Gam.Zotero;
+  const icon = Gam.rootURI + "content/icons/gam.svg";
+  let last = null;
+  const paneID = Zotero.ItemPaneManager.registerSection({
+    paneID: PANE_ID,
+    pluginID: Gam.id,
+    header: { l10nID: "gam-pane-header", icon },
+    sidenav: { l10nID: "gam-pane-sidenav", icon },
+    onItemChange: ({ item, setEnabled }) => {
+      setEnabled(!!item?.isRegularItem());
+    },
+    onRender: (props) => {
+      last = props;
+      render(Gam, props);
+    },
+    onAsyncRender: async (props) => {
+      renderCitedIn(Gam, props);
+    },
+  });
+  if (paneID) {
+    Gam.onRefresh.push(() => {
+      if (last?.body?.isConnected && last.item) {
+        render(Gam, last);
+        renderCitedIn(Gam, last);
+      }
+    });
+    Gam.cleanups.push(() => Zotero.ItemPaneManager.unregisterSection(paneID));
+  }
+  return paneID;
+}

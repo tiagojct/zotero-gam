@@ -6,3 +6,7 @@ gam-pref-exclude = Folders that "Cited in" leaves out (comma-separated)
 gam-pref-marker = Marker tag for the child note (empty: none)
 gam-pref-open-after-create =
     .label = Open the new note in Obsidian
+gam-pane-header =
+    .label = Vault
+gam-pane-sidenav =
+    .tooltiptext = Vault
