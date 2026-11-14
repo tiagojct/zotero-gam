@@ -24,7 +24,12 @@ function button(doc, label, onClick) {
   return b;
 }
 
-function render(Gam, { doc, body, item, setSectionSummary }) {
+// The item that each section body shows now. Zotero reuses a body for the next selected item.
+const shownItem = new WeakMap();
+
+/** Draw the section for item into body. Exported for the tests. */
+export function render(Gam, { doc, body, item, setSectionSummary }) {
+  shownItem.set(body, item);
   body.replaceChildren();
   const box = el(doc, "div", null, "padding: 2px 0; user-select: text;");
   body.append(box);
@@ -40,7 +45,8 @@ function render(Gam, { doc, body, item, setSectionSummary }) {
     if (b) b.disabled = true;
     return Gam.actions.createNote?.(item).finally(() => {
       if (b?.isConnected) b.disabled = false;
-      if (body.isConnected) render(Gam, { doc, body, item, setSectionSummary });
+      // Draw again only if the body still shows this item: the user can select another item meanwhile.
+      if (body.isConnected && shownItem.get(body) === item) render(Gam, { doc, body, item, setSectionSummary });
     });
   };
 
