@@ -5,11 +5,12 @@ import { buildIndex } from "./lib/index.mjs";
 import { currentKey } from "./lib/citekey.mjs";
 import { parseUris } from "./lib/obsidian.mjs";
 import { expandHome } from "./lib/paths.mjs";
+import { columnSignature, isNoteEvent } from "./lib/state.mjs";
 import { registerColumn } from "./ui/column.mjs";
 import { registerPane } from "./ui/pane.mjs";
 import { registerMenus } from "./ui/menu.mjs";
 import { createNote, notify } from "./create.mjs";
-import { listMarkdown, vaultExists } from "./vault.mjs";
+import { listMarkdown, checkVault } from "./vault.mjs";
 
 const { setTimeout, clearTimeout } = ChromeUtils.importESModule("resource://gre/modules/Timer.sys.mjs");
 
@@ -24,6 +25,8 @@ let running = null;
 let linksTimer = null;
 const logged = new Set();
 const focusHandlers = new Map();
+let knownNoteIDs = new Set();
+let lastSignature = null;
 
 function pref(name) {
   return Zotero.Prefs.get(PREF + name, true);
@@ -80,7 +83,7 @@ export const Gam = {
     this.rootURI = rootURI;
     notifierID = Zotero.Notifier.registerObserver({
       notify: (event, type, ids) => {
-        if (["add", "modify", "delete", "trash", "refresh"].includes(event)) this.scheduleLinks();
+        if (isNoteEvent(event, ids, (id) => Zotero.Items.get(id), knownNoteIDs)) this.scheduleLinks();
       },
     }, ["item"], "gam");
     this.actions.createNote = (item) => createNote(this, item).catch((e) => {
@@ -134,14 +137,15 @@ export const Gam = {
     lastRefresh = Date.now();
     running = (async () => {
       const vault = this.prefs.vault();
-      if (await vaultExists(vault)) {
+      const problem = await checkVault(vault);
+      if (!problem) {
         const files = await listMarkdown(vault, this.prefs.exclude());
         this.state.index = buildIndex(files, { literatureFolder: this.prefs.literatureFolder() });
         this.state.error = null;
       } else {
         this.state.index = null;
-        this.state.error = `Vault folder not found: ${vault}`;
-        this.log(this.state.error);
+        this.state.error = problem;
+        this.log(problem);
       }
       await this.loadLinks();
       Zotero.debug(`gam: index ${this.state.index ? this.state.index.citekeys().size : 0} literature notes, `
@@ -158,18 +162,22 @@ export const Gam = {
   /** The obsidian:// links of the child notes, by parent item ID. */
   async loadLinks() {
     const rows = await Zotero.DB.queryAsync(
-      "SELECT parentItemID AS parentID, note FROM itemNotes WHERE parentItemID IS NOT NULL "
-      + "AND note LIKE ? AND itemID NOT IN (SELECT itemID FROM deletedItems)",
+      "SELECT itemID, parentItemID AS parentID, note FROM itemNotes WHERE parentItemID IS NOT NULL "
+      + "AND note LIKE ? AND itemID NOT IN (SELECT itemID FROM deletedItems) "
+      + "AND parentItemID NOT IN (SELECT itemID FROM deletedItems)",
       ["%obsidian://open%"],
     );
     const links = new Map();
+    const ids = new Set();
     for (const row of rows || []) {
+      ids.add(row.itemID);
       const found = parseUris(row.note);
       if (!found.length) continue;
       if (!links.has(row.parentID)) links.set(row.parentID, []);
       links.get(row.parentID).push(...found);
     }
     this.state.links = links;
+    knownNoteIDs = ids;
   },
 
   scheduleLinks() {
@@ -180,9 +188,12 @@ export const Gam = {
   },
 
   notifyRefresh() {
+    const signature = columnSignature(this.state.index, this.state.links);
+    const columnChanged = signature !== lastSignature;
+    lastSignature = signature;
     for (const fn of this.onRefresh) {
       try {
-        fn();
+        fn({ columnChanged });
       } catch (e) {
         Zotero.logError(e);
       }

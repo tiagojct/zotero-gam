@@ -31,7 +31,9 @@ export function registerColumn(Gam) {
     },
   });
   if (dataKey) {
-    Gam.onRefresh.push(() => Zotero.ItemTreeManager.refreshColumns());
+    Gam.onRefresh.push(({ columnChanged }) => {
+      if (columnChanged) Zotero.ItemTreeManager.refreshColumns();
+    });
     Gam.cleanups.push(() => Zotero.ItemTreeManager.unregisterColumn(dataKey));
   }
   return dataKey;

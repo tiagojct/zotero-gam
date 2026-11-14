@@ -48,3 +48,9 @@ test("a newline in the title stays inside the string", () => {
 test("yamlString quotes and escapes", () => {
   assert.equal(yamlString('a "b"\nc'), '"a \\"b\\" c"');
 });
+
+test("a citekey that is not plain is quoted", () => {
+  const n = noteFromItem({ title: "T", creators: [] }, { citekey: "2020", itemKey: "AAAAAAAA", today: "2026-11-14" });
+  assert.match(n, /^citekey: "2020"$/m);
+  assert.match(noteFromItem({ title: "T", creators: [] }, { citekey: "smith_2020-a", itemKey: "AAAAAAAA", today: "2026-11-14" }), /^citekey: smith_2020-a$/m);
+});

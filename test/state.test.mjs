@@ -36,3 +36,29 @@ test("columnText", () => {
   assert.equal(columnText({ kind: "missing", missingPath: "a.md" }), "missing");
   assert.equal(columnText({ kind: "none" }), "");
 });
+
+import { columnSignature, isNoteEvent } from "../content/lib/state.mjs";
+
+test("columnSignature changes when a status or a linked file changes, not for other files", () => {
+  const files = [{ path: "sub-sub/literature/a.md", text: "---\nstatus: to-read\n---\n" }];
+  const lit = { literatureFolder: "sub-sub/literature" };
+  const links = new Map([[7, [{ vault: "v", file: "sub-sub/literature/gone.md" }]]]);
+  const s1 = columnSignature(buildIndex(files, lit), links);
+  assert.equal(columnSignature(buildIndex([...files, { path: "other.md", text: "[[a]]" }], lit), links), s1);
+  assert.notEqual(columnSignature(buildIndex([{ path: "sub-sub/literature/a.md", text: "---\nstatus: read\n---\n" }], lit), links), s1);
+  assert.notEqual(columnSignature(buildIndex([...files, { path: "sub-sub/literature/gone.md", text: "" }], lit), links), s1);
+  assert.notEqual(columnSignature(buildIndex(files, lit), new Map()), s1);
+  assert.equal(columnSignature(null, new Map()), "");
+});
+
+test("isNoteEvent: only events on notes count", () => {
+  const items = { 1: { isNote: () => true }, 2: { isNote: () => false } };
+  const getItem = (id) => items[id] || false;
+  const known = new Set([5]);
+  assert.equal(isNoteEvent("modify", [2], getItem, known), false);
+  assert.equal(isNoteEvent("modify", [2, 1], getItem, known), true);
+  assert.equal(isNoteEvent("add", [1], getItem, known), true);
+  assert.equal(isNoteEvent("delete", [9], getItem, known), false);
+  assert.equal(isNoteEvent("delete", [5], getItem, known), true);
+  assert.equal(isNoteEvent("refresh", [2], getItem, known), false);
+});

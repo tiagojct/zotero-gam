@@ -73,5 +73,8 @@ export function buildIndex(files, { literatureFolder }) {
     citekeys() {
       return new Set(byCitekey.keys());
     },
+    notes() {
+      return [...byCitekey.values()];
+    },
   };
 }

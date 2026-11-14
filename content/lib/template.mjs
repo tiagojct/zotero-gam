@@ -7,6 +7,12 @@ export function yamlString(s) {
   return JSON.stringify(String(s ?? "").replace(/\r?\n/g, " "));
 }
 
+/** A citekey as YAML: plain when it is a safe plain word, else quoted. */
+function yamlKey(key) {
+  const plain = /^[A-Za-z][A-Za-z0-9_-]*$/.test(key) && !/^(true|false|null|yes|no|on|off)$/i.test(key);
+  return plain ? key : yamlString(key);
+}
+
 function authorName(c) {
   if (c.lastName) return c.firstName ? `${c.lastName}, ${c.firstName}` : c.lastName;
   return c.name ?? "";
@@ -24,7 +30,7 @@ export function noteFromItem(data, { citekey, itemKey, today }) {
     lines.push("authors: []");
   }
   if (year) lines.push(`year: ${year}`);
-  lines.push(`citekey: ${citekey}`, `item-type: ${data.itemType ?? ""}`);
+  lines.push(`citekey: ${yamlKey(citekey)}`, `item-type: ${data.itemType ?? ""}`);
   if (venue) lines.push(`venue: ${yamlString(venue)}`);
   if (data.DOI) lines.push(`doi: ${yamlString(data.DOI)}`);
   lines.push(

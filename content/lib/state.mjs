@@ -20,3 +20,26 @@ export function columnText(state) {
   if (state.kind === "missing") return "missing";
   return "";
 }
+
+/**
+ * A string that changes only when a value in the Note column can change:
+ * the status of a literature note, or whether a linked file exists.
+ */
+export function columnSignature(index, links) {
+  if (!index) return "";
+  const parts = index.notes().map((n) => `n\t${n.path}\t${n.citekey}\t${n.itemKey}\t${n.status}`).sort();
+  for (const [id, list] of links) {
+    for (const l of list) parts.push(`l\t${id}\t${l.vault.toLowerCase()}\t${l.file}\t${index.hasPath(l.file)}`);
+  }
+  return parts.join("\n");
+}
+
+/** True when a Zotero item event can change the obsidian links: an event on a note. */
+export function isNoteEvent(event, ids, getItem, knownNoteIDs) {
+  if (event === "delete") return ids.some((id) => knownNoteIDs.has(id));
+  if (!["add", "modify", "trash"].includes(event)) return false;
+  return ids.some((id) => {
+    const item = getItem(id);
+    return !!item && item.isNote();
+  });
+}

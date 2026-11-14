@@ -1,12 +1,18 @@
 // File access to the vault. Uses IOUtils and PathUtils (available in system modules).
 
-/** True when root is an existing folder. */
-export async function vaultExists(root) {
+/** null when root is a folder that can be read, else the message for the user. */
+export async function checkVault(root) {
   try {
-    return (await IOUtils.stat(root)).type === "directory";
+    if ((await IOUtils.stat(root)).type !== "directory") return `Vault folder not found: ${root}`;
   } catch {
-    return false;
+    return `Vault folder not found: ${root}`;
   }
+  try {
+    await IOUtils.getChildren(root);
+  } catch {
+    return `Vault folder not readable: ${root}`;
+  }
+  return null;
 }
 
 /**
@@ -52,13 +58,20 @@ export async function listMarkdown(root, exclude = []) {
   return out;
 }
 
-/** Write a new file. Throws "exists" when the file exists; never overwrites. */
+/**
+ * Write a new file. Throws an error named "exists" when the file exists; never overwrites.
+ * mode "create" opens the file with O_EXCL, so the check and the write are one step.
+ * The note is small, so one write call needs no temporary file.
+ */
 export async function createFile(absPath, text) {
-  if (await IOUtils.exists(absPath)) {
-    const err = new Error(`A note with this name exists: ${absPath}. Nothing was written.`);
-    err.name = "exists";
-    throw err;
-  }
+  const exists = () => Object.assign(
+    new Error(`A note with this name exists: ${absPath}. Nothing was written.`), { name: "exists" });
+  if (await IOUtils.exists(absPath)) throw exists();
   await IOUtils.makeDirectory(PathUtils.parent(absPath), { ignoreExisting: true, createAncestors: true });
-  await IOUtils.writeUTF8(absPath, text, { mode: "create", tmpPath: absPath + ".gam-tmp" });
+  try {
+    await IOUtils.writeUTF8(absPath, text, { mode: "create" });
+  } catch (e) {
+    if (await IOUtils.exists(absPath)) throw exists();
+    throw e;
+  }
 }
