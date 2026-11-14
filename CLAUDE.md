@@ -33,4 +33,4 @@ Zotero 10 plugin. It shows the Obsidian vault facts of each Zotero item and crea
 
 Zotero reads update_url (the raw updates.json on main) to find updates. This works only when the repo and its releases are public.
 
-Repo: github.com/tiagojct/zotero-gam (tiagojct/gam is an older, archived project).
+Repo: github.com/tiagojct/zotero-gam (tiagojct/gam is an older, archived project). Folder: tools/zotero-gam. The plugin name in Zotero is gam.
