@@ -1,6 +1,6 @@
 // File access to the vault. Uses IOUtils and PathUtils (available in system modules).
 
-import { joinPath } from "./lib/paths.mjs";
+import { joinPath, matchName } from "./lib/paths.mjs";
 
 /** null when root is an Obsidian vault folder that can be read, else the message for the user. */
 export async function checkVault(root) {
@@ -106,4 +106,28 @@ export async function createFile(absPath, text) {
     if (await IOUtils.exists(absPath)) throw exists();
     throw e;
   }
+}
+
+/**
+ * rel (a folder path inside root, with "/") with the case and Unicode form of the folders that exist.
+ * On a disk that ignores case, "Literature" opens "literature", but the scan lists the real name.
+ * Parts that do not exist stay as they are.
+ */
+export async function realFolderCase(root, rel) {
+  const parts = String(rel).split("/").filter(Boolean);
+  const out = [];
+  let dir = root;
+  for (let i = 0; i < parts.length; i++) {
+    let names;
+    try {
+      names = (await IOUtils.getChildren(dir)).map((p) => PathUtils.filename(p));
+    } catch {
+      names = [];
+    }
+    const name = matchName(names, parts[i]);
+    if (!name) return [...out, ...parts.slice(i)].join("/");
+    out.push(name);
+    dir = joinPath(dir, name);
+  }
+  return out.join("/");
 }

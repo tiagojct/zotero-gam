@@ -129,3 +129,12 @@ test("an item in the trash is refused before any file is written", async () => {
   assert.equal(fs.readdirSync(s.vault).length, 0);
   assert.equal(s.saved.length, 0);
 });
+
+test("the note goes into the literature folder of the index, with the case on disk", async () => {
+  const s = setup({ citationKey: "gamtest2026" });
+  fs.mkdirSync(path.join(s.vault, "Lit"));
+  s.Gam.state.literatureFolder = "Lit";
+  const r = await createNote(s.Gam, s.item);
+  assert.equal(r.path, "Lit/gamtest2026.md");
+  assert.match(s.saved[0].html, /file=Lit%2Fgamtest2026/);
+});

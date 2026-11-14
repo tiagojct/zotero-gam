@@ -5,7 +5,7 @@ import path from "node:path";
 import { installFakeIO, tempVault } from "./helpers/fake-io.mjs";
 
 installFakeIO();
-const { checkVault, createFile, listMarkdown } = await import("../content/vault.mjs");
+const { checkVault, createFile, listMarkdown, realFolderCase } = await import("../content/vault.mjs");
 
 test("checkVault: null for a readable folder, a message for a missing or unreadable one", async () => {
   const v = tempVault();
@@ -102,4 +102,12 @@ test("listMarkdown: the stamp changes when the file changes", async () => {
   fs.writeFileSync(p, "one");
   fs.utimesSync(p, 2000, 2000);
   assert.notEqual((await listMarkdown(v, []))[0].stamp, s1, "other time");
+});
+
+test("realFolderCase gives the case of the folders on disk, and keeps parts that do not exist", async () => {
+  const v = tempVault();
+  fs.mkdirSync(path.join(v, "sub-sub", "literature"), { recursive: true });
+  assert.equal(await realFolderCase(v, "Sub-Sub/Literature"), "sub-sub/literature");
+  assert.equal(await realFolderCase(v, "sub-sub/New/x"), "sub-sub/New/x");
+  assert.equal(await realFolderCase(v, "sub-sub/literature"), "sub-sub/literature");
 });

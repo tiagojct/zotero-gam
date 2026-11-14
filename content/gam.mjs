@@ -4,14 +4,14 @@
 import { buildIndex, isCached } from "./lib/index.mjs";
 import { currentKey } from "./lib/citekey.mjs";
 import { parseUris } from "./lib/obsidian.mjs";
-import { expandHome } from "./lib/paths.mjs";
+import { expandHome, checkLiteratureFolder } from "./lib/paths.mjs";
 import { columnSignature, isNoteEvent } from "./lib/state.mjs";
 import { makeRefresher, makeDebounce } from "./lib/refresher.mjs";
 import { registerColumn } from "./ui/column.mjs";
 import { registerPane } from "./ui/pane.mjs";
 import { registerMenus } from "./ui/menu.mjs";
 import { createNote, notify } from "./create.mjs";
-import { listMarkdown, checkVault } from "./vault.mjs";
+import { listMarkdown, checkVault, realFolderCase } from "./vault.mjs";
 
 const { setTimeout, clearTimeout } = ChromeUtils.importESModule("resource://gre/modules/Timer.sys.mjs");
 
@@ -44,7 +44,8 @@ function pref(name) {
 export const Gam = {
   id: null,
   rootURI: null,
-  state: { index: null, error: null, links: new Map() },
+  // literatureFolder: the folder of the last scan, with the case of the folders on disk.
+  state: { index: null, error: null, links: new Map(), literatureFolder: null },
   // Functions that Tasks 7 and 8 add, called after each refresh (for example, to redraw the column).
   onRefresh: [],
   // Functions called in shutdown() (for example, to unregister the column).
@@ -162,19 +163,21 @@ export const Gam = {
 
   async scan() {
     const vault = this.prefs.vault();
-    const problem = await checkVault(vault);
+    const problem = (await checkVault(vault)) || checkLiteratureFolder(this.prefs.literatureFolder());
     if (!problem) {
       if (cacheReset || vault !== cacheVault) indexCache.clear();
       cacheReset = false;
       cacheVault = vault;
-      const literatureFolder = this.prefs.literatureFolder();
+      const literatureFolder = await realFolderCase(vault, this.prefs.literatureFolder());
       const files = await listMarkdown(vault, this.prefs.exclude(), {
         isCurrent: (path, stamp) => isCached(indexCache, path, stamp, literatureFolder),
       });
       this.state.index = buildIndex(files, { literatureFolder, cache: indexCache });
+      this.state.literatureFolder = literatureFolder;
       this.state.error = null;
     } else {
       this.state.index = null;
+      this.state.literatureFolder = null;
       this.state.error = problem;
       this.log(problem);
     }

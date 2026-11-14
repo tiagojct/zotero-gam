@@ -70,7 +70,8 @@ export async function createNote(Gam, item, { open = Gam.prefs.openAfterCreate()
     existingKey,
     taken,
     vaultName: Gam.prefs.vaultName(),
-    literatureFolder: Gam.prefs.literatureFolder(),
+    // The folder of the index (the case on disk), so the new note is in the index after the refresh.
+    literatureFolder: Gam.state.literatureFolder || Gam.prefs.literatureFolder(),
     today: localDate(),
     libraryPath: item.library?.libraryType === "group" ? `groups/${item.library.groupID}` : "library",
   });
