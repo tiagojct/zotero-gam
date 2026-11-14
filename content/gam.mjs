@@ -7,6 +7,8 @@ import { parseUris } from "./lib/obsidian.mjs";
 import { expandHome } from "./lib/paths.mjs";
 import { registerColumn } from "./ui/column.mjs";
 import { registerPane } from "./ui/pane.mjs";
+import { registerMenus } from "./ui/menu.mjs";
+import { createNote, notify } from "./create.mjs";
 import { listMarkdown, vaultExists } from "./vault.mjs";
 
 const { setTimeout, clearTimeout } = ChromeUtils.importESModule("resource://gre/modules/Timer.sys.mjs");
@@ -81,8 +83,12 @@ export const Gam = {
         if (["add", "modify", "delete", "trash", "refresh"].includes(event)) this.scheduleLinks();
       },
     }, ["item"], "gam");
+    this.actions.createNote = (item) => createNote(this, item).catch((e) => {
+      notify(Zotero, e.message || String(e), false);
+    });
     registerColumn(this);
     registerPane(this);
+    registerMenus(this);
     await this.refresh({ force: true });
   },
 
