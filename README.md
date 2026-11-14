@@ -16,6 +16,8 @@ The plugin never changes or overwrites an existing vault file.
 
 ## Install
 
+gam needs Zotero 10 on macOS or Linux. It is not tested on Windows, and its vault paths use "/".
+
 1. Download `gam-<version>.xpi` from the latest release.
 2. In Zotero, select Tools > Plugins, then drag the file into the window.
 
@@ -31,6 +33,10 @@ Zotero Settings > gam:
 | Folders that "Cited in" leaves out | archive,.obsidian,.trash |
 | Marker tag for the child note | empty |
 | Open the new note in Obsidian | on |
+
+- The vault folder must contain the `.obsidian` folder.
+- The literature folder is a folder inside the vault. It cannot be hidden or contain "..".
+- gam reads the vault again when you return to the Zotero window (at most once each 30 seconds) and one second after a setting changes. It reads only the files that changed. Tools > Refresh gam index reads all files again.
 
 ## Development
 
