@@ -19,6 +19,10 @@ test("checkVault: null for a readable folder, a message for a missing or unreada
   }
 });
 
+test("checkVault: asks for a vault folder when none is set", async () => {
+  assert.equal(await checkVault(""), "Set the vault folder in Settings > gam.");
+});
+
 test("createFile writes a new file and never overwrites", async () => {
   const v = tempVault();
   const p = path.join(v, "sub", "a.md");

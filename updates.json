@@ -19,6 +19,15 @@
               "strict_min_version": "10.0"
             }
           }
+        },
+        {
+          "version": "0.1.2",
+          "update_link": "https://github.com/tiagojct/zotero-gam/releases/download/v0.1.2/gam-0.1.2.xpi",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "10.0"
+            }
+          }
         }
       ]
     }

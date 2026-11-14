@@ -46,9 +46,9 @@ export const Gam = {
   actions: {},
 
   prefs: {
-    vault: () => expandHome(String(pref("vault") || "~/quarterdeck/powerslave"), homeDir),
-    vaultName: () => String(pref("vaultName") || "") || PathUtils.filename(Gam.prefs.vault()),
-    literatureFolder: () => String(pref("literatureFolder") || "sub-sub/literature").replace(/^\/+|\/+$/g, ""),
+    vault: () => expandHome(String(pref("vault") || "").trim(), homeDir),
+    vaultName: () => String(pref("vaultName") || "") || (Gam.prefs.vault() ? PathUtils.filename(Gam.prefs.vault()) : ""),
+    literatureFolder: () => String(pref("literatureFolder") || "literature").replace(/^\/+|\/+$/g, ""),
     exclude: () => String(pref("exclude") ?? "").split(",").map((s) => s.trim()).filter(Boolean),
     marker: () => String(pref("marker") || ""),
     openAfterCreate: () => pref("openAfterCreate") !== false,

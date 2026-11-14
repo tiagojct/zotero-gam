@@ -2,6 +2,7 @@
 
 /** null when root is a folder that can be read, else the message for the user. */
 export async function checkVault(root) {
+  if (!root) return "Set the vault folder in Settings > gam.";
   try {
     if ((await IOUtils.stat(root)).type !== "directory") return `Vault folder not found: ${root}`;
   } catch {

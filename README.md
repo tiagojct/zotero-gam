@@ -25,9 +25,9 @@ Zotero Settings > gam:
 
 | Preference | Default |
 |---|---|
-| Vault folder | ~/quarterdeck/powerslave |
+| Vault folder | empty: set it before first use |
 | Obsidian vault name | empty (the vault folder name) |
-| Literature folder | sub-sub/literature |
+| Literature folder | literature |
 | Folders that "Cited in" leaves out | archive,.obsidian,.trash |
 | Marker tag for the child note | empty |
 | Open the new note in Obsidian | on |
