@@ -94,3 +94,30 @@ test("an item in a group library gets the groups form of the Zotero link", async
   const text = fs.readFileSync(path.join(s.vault, "lit/grp2026.md"), "utf8");
   assert.match(text, /^zotero: zotero:\/\/select\/groups\/4321\/items\/ABCDEFGH$/m);
 });
+
+function failingOpen(s) {
+  const messages = [];
+  s.Gam.Zotero.launchURL = () => { throw new Error("Handler not found"); };
+  s.Gam.Zotero.ProgressWindow = class { changeHeadline() {} addDescription(m) { messages.push(m); } show() {} startCloseTimer() {} };
+  return messages;
+}
+
+test("a note that was made is not a failure when Obsidian does not open", async () => {
+  const s = setup({ citationKey: "gamtest2026" });
+  const messages = failingOpen(s);
+  const r = await createNote(s.Gam, s.item, { open: true });
+  assert.equal(r.path, "lit/gamtest2026.md");
+  assert.match(r.openError, /Obsidian did not open the note: Handler not found/);
+  assert.equal(s.saved.length, 1);
+  assert.match(messages.join("\n"), /Note created: lit\/gamtest2026\.md\nObsidian did not open the note/);
+});
+
+test("createNotes counts the note when Obsidian does not open", async () => {
+  const s = setup({ citationKey: "gamtest2026" });
+  const messages = failingOpen(s);
+  s.Gam.prefs.openAfterCreate = () => true;
+  const r = await createNotes(s.Gam, [s.item]);
+  assert.equal(r.made, 1);
+  assert.deepEqual(r.errors, []);
+  assert.match(messages.join("\n"), /^1 note\(s\) created\.\nObsidian did not open the note: Handler not found$/);
+});

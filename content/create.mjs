@@ -47,7 +47,8 @@ function safeFileKey(key) {
 }
 
 /**
- * Create the note for one item. Returns {path, citekey}. Throws with a message for the user.
+ * Create the note for one item. Returns {path, citekey, openError}. Throws with a message for the user.
+ * openError is the message when the note was made but Obsidian did not open it, else null.
  * refresh: false when the caller refreshes once after several items.
  */
 export async function createNote(Gam, item, { open = Gam.prefs.openAfterCreate(), quiet = false, refresh = true } = {}) {
@@ -96,9 +97,16 @@ export async function createNote(Gam, item, { open = Gam.prefs.openAfterCreate()
   }
 
   if (refresh) await Gam.refresh({ force: true });
-  if (!quiet) notify(Zotero, `Note created: ${plan.relPath}`);
-  if (open) openInObsidian(Gam, plan.relPath);
-  return { path: plan.relPath, citekey: plan.citekey };
+  let openError = null;
+  if (open) {
+    try {
+      openInObsidian(Gam, plan.relPath);
+    } catch (e) {
+      openError = `Obsidian did not open the note: ${e.message || e}`;
+    }
+  }
+  if (!quiet) notify(Zotero, [`Note created: ${plan.relPath}`, openError].filter(Boolean).join("\n"), !openError);
+  return { path: plan.relPath, citekey: plan.citekey, openError };
 }
 
 /** Create notes for several items; report one summary. */
@@ -107,18 +115,20 @@ export async function createNotes(Gam, items) {
   const regular = items.filter((i) => i.isRegularItem());
   let made = 0;
   const errors = [];
+  const warnings = [];
   for (const item of regular) {
     try {
-      await createNote(Gam, item, { open: regular.length === 1 && Gam.prefs.openAfterCreate(), quiet: true, refresh: false });
+      const r = await createNote(Gam, item, { open: regular.length === 1 && Gam.prefs.openAfterCreate(), quiet: true, refresh: false });
       made += 1;
+      if (r.openError) warnings.push(r.openError);
     } catch (e) {
       errors.push(e.message || String(e));
     }
   }
   await Gam.refresh({ force: true });
-  const text = [`${made} note(s) created.`, ...errors].join("\n");
-  notify(Zotero, text, errors.length === 0);
-  return { made, errors };
+  const text = [`${made} note(s) created.`, ...errors, ...warnings].join("\n");
+  notify(Zotero, text, errors.length === 0 && warnings.length === 0);
+  return { made, errors, warnings };
 }
 
 export { notify };
