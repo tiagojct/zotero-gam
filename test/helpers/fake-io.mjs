@@ -12,7 +12,7 @@ export function installFakeIO() {
   globalThis.IOUtils = {
     async stat(p) {
       const s = fs.statSync(p);
-      return { type: s.isDirectory() ? "directory" : "regular" };
+      return { type: s.isDirectory() ? "directory" : "regular", size: s.size, lastModified: Math.floor(s.mtimeMs) };
     },
     async getChildren(p) {
       return fs.readdirSync(p).map((n) => path.join(p, n));

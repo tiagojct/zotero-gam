@@ -36,11 +36,13 @@ async function isSymlink(path) {
 }
 
 /**
- * All .md files under root, as [{path, text}] with path relative to root and "/".
+ * All .md files under root, as [{path, stamp, text}] with path relative to root and "/".
+ * stamp is the modification time and the size of the file. When isCurrent(path, stamp) is true,
+ * the file is not read and text is null (the caller has its data from an earlier scan).
  * Hidden folders and symbolic links to folders are skipped. Files in the folders of exclude
  * (paths relative to root) are listed as {path, text: "", excluded: true}, without reading them.
  */
-export async function listMarkdown(root, exclude = []) {
+export async function listMarkdown(root, exclude = [], { isCurrent } = {}) {
   const skip = exclude.map((e) => e.trim().replace(/^\/+|\/+$/g, "")).filter(Boolean);
   const out = [];
   const prefix = root.endsWith("/") ? root : root + "/";
@@ -70,8 +72,13 @@ export async function listMarkdown(root, exclude = []) {
           out.push({ path: rel, text: "", excluded: true });
           return;
         }
+        const stamp = `${info.lastModified}:${info.size}`;
+        if (isCurrent?.(rel, stamp)) {
+          out.push({ path: rel, stamp, text: null });
+          return;
+        }
         try {
-          out.push({ path: rel, text: await IOUtils.readUTF8(abs) });
+          out.push({ path: rel, stamp, text: await IOUtils.readUTF8(abs) });
         } catch {
           // Not readable as UTF-8: leave it out.
         }

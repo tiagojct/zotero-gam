@@ -61,7 +61,11 @@ export function registerMenus(Gam) {
       {
         menuType: "menuitem",
         l10nID: "gam-menu-refresh",
-        onCommand: () => Gam.refresh({ force: true }).catch((e) => Zotero.logError(e)),
+        // A full scan: every file is read again.
+        onCommand: () => {
+          Gam.clearCache();
+          Gam.refresh({ force: true }).catch((e) => Zotero.logError(e));
+        },
       },
     ],
   });

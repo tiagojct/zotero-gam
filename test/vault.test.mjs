@@ -66,3 +66,40 @@ test("listMarkdown lists files in excluded folders as excluded, without their te
   fs.writeFileSync(path.join(v, "archive", "old.md"), "[[x]]");
   assert.deepEqual(await listMarkdown(v, ["archive"]), [{ path: "archive/old.md", text: "", excluded: true }]);
 });
+
+test("listMarkdown gives a stamp and does not read a file that isCurrent accepts", async () => {
+  const v = tempVault();
+  fs.writeFileSync(path.join(v, "a.md"), "one");
+  fs.writeFileSync(path.join(v, "b.md"), "two");
+  const [first] = (await listMarkdown(v, [])).filter((f) => f.path === "a.md");
+  assert.equal(first.text, "one");
+  assert.equal(typeof first.stamp, "string");
+  const read = IOUtils.readUTF8;
+  const reads = [];
+  IOUtils.readUTF8 = async (p) => { reads.push(path.basename(p)); return read(p); };
+  try {
+    const files = await listMarkdown(v, [], { isCurrent: (rel, stamp) => rel === "a.md" && stamp === first.stamp });
+    assert.deepEqual(files.find((f) => f.path === "a.md"), { path: "a.md", stamp: first.stamp, text: null });
+    assert.equal(files.find((f) => f.path === "b.md").text, "two");
+    assert.deepEqual(reads, ["b.md"]);
+  } finally {
+    IOUtils.readUTF8 = read;
+  }
+});
+
+test("listMarkdown: the stamp changes when the file changes", async () => {
+  const v = tempVault();
+  const p = path.join(v, "a.md");
+  fs.writeFileSync(p, "one");
+  fs.utimesSync(p, 1000, 1000);
+  const s1 = (await listMarkdown(v, []))[0].stamp;
+  fs.writeFileSync(p, "two");
+  fs.utimesSync(p, 1000, 1000);
+  assert.equal((await listMarkdown(v, []))[0].stamp, s1, "same size and time");
+  fs.writeFileSync(p, "three");
+  fs.utimesSync(p, 1000, 1000);
+  assert.notEqual((await listMarkdown(v, []))[0].stamp, s1, "other size");
+  fs.writeFileSync(p, "one");
+  fs.utimesSync(p, 2000, 2000);
+  assert.notEqual((await listMarkdown(v, []))[0].stamp, s1, "other time");
+});

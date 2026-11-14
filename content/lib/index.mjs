@@ -18,9 +18,42 @@ function asList(v) {
   return v ? [v] : [];
 }
 
-/** files: [{path, text}], path relative to the vault root with "/". */
-export function buildIndex(files, { literatureFolder }) {
-  const litPrefix = nfc(literatureFolder).replace(/\/+$/, "") + "/";
+const prefixOf = (literatureFolder) => nfc(literatureFolder).replace(/\/+$/, "") + "/";
+
+/** The references in one file and, for a file in the literature folder, its note. */
+function analyze(path, text, litPrefix) {
+  const refs = extractRefs(text);
+  if (!path.startsWith(litPrefix) || !path.endsWith(".md")) return { refs, note: null };
+  const { data, body } = parseFrontmatter(text);
+  const stem = path.split("/").pop().replace(/\.md$/, "");
+  const citekey = nfc(typeof data.citekey === "string" && data.citekey ? data.citekey : stem);
+  const itemKey = (typeof data.zotero === "string" && data.zotero.match(ZOTERO_KEY)?.[1]) || "";
+  const note = {
+    path,
+    title: typeof data.title === "string" && data.title ? data.title : stem,
+    status: typeof data.status === "string" ? data.status : "",
+    tags: asList(data.tags).map(String),
+    summary: firstSection(body, "## Summary", 3),
+    citekey,
+    itemKey,
+  };
+  return { refs, note };
+}
+
+/** True when cache has the data of this version of the file, so its text need not be read. */
+export function isCached(cache, path, stamp, literatureFolder) {
+  const entry = cache?.get(nfc(path));
+  return !!entry && stamp != null && entry.stamp === stamp && entry.litPrefix === prefixOf(literatureFolder);
+}
+
+/**
+ * files: [{path, stamp, text}], path relative to the vault root with "/".
+ * cache (optional, a Map kept between scans): the data of each file by path. A file with text null
+ * takes its data from the cache (listMarkdown leaves out the text when isCached is true).
+ * Files that are not in files are removed from the cache.
+ */
+export function buildIndex(files, { literatureFolder, cache = null }) {
+  const litPrefix = prefixOf(literatureFolder);
   const paths = new Set();
   const byCitekey = new Map();
   const byItemKey = new Map();
@@ -28,32 +61,31 @@ export function buildIndex(files, { literatureFolder }) {
   const refsByItemKey = new Map();
   const refsByDoi = new Map();
 
+  const seen = new Set();
+
   for (const f of files) {
     const path = nfc(f.path);
     paths.add(path);
     // A file in an excluded folder exists (a link to it is not "missing"), but its references do not count.
     if (f.excluded) continue;
-    const refs = extractRefs(f.text);
+    seen.add(path);
+    let entry;
+    if (f.text == null && isCached(cache, path, f.stamp, literatureFolder)) {
+      entry = cache.get(path);
+    } else {
+      entry = { stamp: f.stamp, litPrefix, ...analyze(path, f.text ?? "", litPrefix) };
+      if (cache && f.stamp != null && f.text != null) cache.set(path, entry);
+    }
+    const { refs, note } = entry;
     for (const k of refs.citekeys) add(refsByCitekey, k, path);
     for (const k of refs.itemKeys) add(refsByItemKey, k, path);
     for (const d of refs.dois) add(refsByDoi, d, path);
-    if (!path.startsWith(litPrefix) || !path.endsWith(".md")) continue;
-
-    const { data, body } = parseFrontmatter(f.text);
-    const stem = path.split("/").pop().replace(/\.md$/, "");
-    const citekey = nfc(typeof data.citekey === "string" && data.citekey ? data.citekey : stem);
-    const itemKey = (typeof data.zotero === "string" && data.zotero.match(ZOTERO_KEY)?.[1]) || "";
-    const note = {
-      path,
-      title: typeof data.title === "string" && data.title ? data.title : stem,
-      status: typeof data.status === "string" ? data.status : "",
-      tags: asList(data.tags).map(String),
-      summary: firstSection(body, "## Summary", 3),
-      citekey,
-      itemKey,
-    };
-    byCitekey.set(citekey, note);
-    if (itemKey) byItemKey.set(itemKey, note);
+    if (!note) continue;
+    byCitekey.set(note.citekey, note);
+    if (note.itemKey) byItemKey.set(note.itemKey, note);
+  }
+  if (cache) {
+    for (const key of [...cache.keys()]) if (!seen.has(key)) cache.delete(key);
   }
 
   return {

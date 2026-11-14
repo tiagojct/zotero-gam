@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildIndex } from "../content/lib/index.mjs";
+import { buildIndex, isCached } from "../content/lib/index.mjs";
 
 const lit = "---\ntitle: Cai paper\ncitekey: cai2026\nzotero: zotero://select/library/items/ABCDEFGH\nstatus: read\ntags:\n  - topic/ai\n---\n## Summary\n\nS1.\n";
 const files = [
@@ -60,4 +60,29 @@ test("files in excluded folders count as existing paths but not as references", 
   ], { literatureFolder: "sub-sub/literature" });
   assert.ok(i.hasPath("archive/old.md"));
   assert.deepEqual(i.citedIn({ citekey: "cai2026" }), []);
+});
+
+test("cache: a file with the same stamp is not read again and gives the same index", () => {
+  const cache = new Map();
+  const lf = { literatureFolder: "sub-sub/literature", cache };
+  const stamped = files.map((f, i) => ({ ...f, stamp: `s${i}` }));
+  const ix1 = buildIndex(stamped, lf);
+  assert.ok(stamped.every((f) => isCached(cache, f.path, f.stamp, "sub-sub/literature")));
+  const ix2 = buildIndex(stamped.map((f) => ({ ...f, text: null })), lf);
+  assert.equal(ix2.noteFor({ citekey: "cai2026" }), ix1.noteFor({ citekey: "cai2026" }));
+  assert.deepEqual(ix2.citedIn({ citekey: "cai2026", doi: "10.5555/abc" }), ix1.citedIn({ citekey: "cai2026", doi: "10.5555/abc" }));
+  assert.deepEqual([...ix2.citekeys()].sort(), [...ix1.citekeys()].sort());
+});
+
+test("cache: a new stamp, another literature folder or a removed file is not cached", () => {
+  const cache = new Map();
+  const one = [{ path: "sub-sub/literature/cai2026.md", text: lit, stamp: "a" }, { path: "x/y.md", text: "[[cai2026]]", stamp: "b" }];
+  buildIndex(one, { literatureFolder: "sub-sub/literature", cache });
+  assert.equal(isCached(cache, "sub-sub/literature/cai2026.md", "a2", "sub-sub/literature"), false);
+  assert.equal(isCached(cache, "sub-sub/literature/cai2026.md", "a", "lit"), false);
+  const changed = lit.replace("status: read", "status: to-read");
+  const ix = buildIndex([{ path: "sub-sub/literature/cai2026.md", text: changed, stamp: "a2" }], { literatureFolder: "sub-sub/literature", cache });
+  assert.equal(ix.noteFor({ citekey: "cai2026" }).status, "to-read");
+  assert.equal(ix.citedIn({ citekey: "cai2026" }).length, 0);
+  assert.deepEqual([...cache.keys()], ["sub-sub/literature/cai2026.md"]);
 });

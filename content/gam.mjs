@@ -1,7 +1,7 @@
 // gam: plugin state, preferences and the vault index.
 // bootstrap.js imports this module and passes Zotero in startup().
 
-import { buildIndex } from "./lib/index.mjs";
+import { buildIndex, isCached } from "./lib/index.mjs";
 import { currentKey } from "./lib/citekey.mjs";
 import { parseUris } from "./lib/obsidian.mjs";
 import { expandHome } from "./lib/paths.mjs";
@@ -31,6 +31,10 @@ const logged = new Set();
 const focusHandlers = new Map();
 let knownNoteIDs = new Set();
 let lastSignature = null;
+// The data of each vault file from the last scan, so a scan reads only the files that changed.
+const indexCache = new Map();
+let cacheVault = null;
+let cacheReset = false;
 
 function pref(name) {
   return Zotero.Prefs.get(PREF + name, true);
@@ -151,12 +155,23 @@ export const Gam = {
     return refresher?.(opts);
   },
 
+  /** The next scan reads every file again. (A scan that runs now keeps its cache.) */
+  clearCache() {
+    cacheReset = true;
+  },
+
   async scan() {
     const vault = this.prefs.vault();
     const problem = await checkVault(vault);
     if (!problem) {
-      const files = await listMarkdown(vault, this.prefs.exclude());
-      this.state.index = buildIndex(files, { literatureFolder: this.prefs.literatureFolder() });
+      if (cacheReset || vault !== cacheVault) indexCache.clear();
+      cacheReset = false;
+      cacheVault = vault;
+      const literatureFolder = this.prefs.literatureFolder();
+      const files = await listMarkdown(vault, this.prefs.exclude(), {
+        isCurrent: (path, stamp) => isCached(indexCache, path, stamp, literatureFolder),
+      });
+      this.state.index = buildIndex(files, { literatureFolder, cache: indexCache });
       this.state.error = null;
     } else {
       this.state.index = null;
