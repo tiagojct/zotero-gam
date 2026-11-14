@@ -1,0 +1,19 @@
+<linkset>
+  <html:link rel="localization" href="gam.ftl"/>
+</linkset>
+<vbox id="gam-prefs">
+  <groupbox>
+    <label><html:h2 data-l10n-id="gam-pref-title"/></label>
+    <label data-l10n-id="gam-pref-vault"/>
+    <html:input type="text" preference="extensions.gam.vault"/>
+    <label data-l10n-id="gam-pref-vault-name"/>
+    <html:input type="text" preference="extensions.gam.vaultName"/>
+    <label data-l10n-id="gam-pref-literature"/>
+    <html:input type="text" preference="extensions.gam.literatureFolder"/>
+    <label data-l10n-id="gam-pref-exclude"/>
+    <html:input type="text" preference="extensions.gam.exclude"/>
+    <label data-l10n-id="gam-pref-marker"/>
+    <html:input type="text" preference="extensions.gam.marker"/>
+    <checkbox preference="extensions.gam.openAfterCreate" data-l10n-id="gam-pref-open-after-create"/>
+  </groupbox>
+</vbox>
