@@ -35,3 +35,7 @@ Zotero Settings > gam:
 ## Development
 
 Run the tests with `npm test`. See CLAUDE.md for the development install.
+
+## License
+
+MIT. See LICENSE.
