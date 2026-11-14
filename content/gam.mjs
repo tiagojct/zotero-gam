@@ -134,6 +134,15 @@ export const Gam = {
     }
     this.onRefresh = [];
     clearTimeout(linksTimer);
+    linksTimer = null;
+    // An update without a restart keeps this module loaded: free the index and the links.
+    this.state = { index: null, error: null, links: new Map(), literatureFolder: null };
+    indexCache.clear();
+    cacheVault = null;
+    cacheReset = false;
+    knownNoteIDs = new Set();
+    lastSignature = null;
+    logged.clear();
   },
 
   onMainWindowLoad(win) {
