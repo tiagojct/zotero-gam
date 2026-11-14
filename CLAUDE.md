@@ -29,8 +29,10 @@ Zotero 10 plugin. It shows the Obsidian vault facts of each Zotero item and crea
 
 1. Change the version in manifest.json.
 2. Add the new version to updates.json (version and update_link).
-3. Commit, then push a tag `v<version>`. The release workflow checks the tag, runs the tests, builds the .xpi and attaches it to a GitHub release.
+3. Commit on main. Do not push main yet.
+4. Push the tag `v<version>` only. The release workflow checks the tag, runs the tests, builds the .xpi and attaches it to a GitHub release.
+5. When the release has the .xpi, push main.
 
-Zotero reads update_url (the raw updates.json on main) to find updates. This works only when the repo and its releases are public.
+Zotero reads update_url (the raw updates.json on main) to find updates. If main is pushed before the release exists, Zotero finds a link to a missing file. This works only when the repo and its releases are public. test/release.test.mjs fails when updates.json has no entry for the manifest version. The test workflow runs the tests on each push to main.
 
 Repo: github.com/tiagojct/zotero-gam (tiagojct/gam is an older, archived project). Folder: tools/zotero-gam. The plugin name in Zotero is gam.
