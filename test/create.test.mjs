@@ -138,3 +138,42 @@ test("the note goes into the literature folder of the index, with the case on di
   assert.equal(r.path, "Lit/gamtest2026.md");
   assert.match(s.saved[0].html, /file=Lit%2Fgamtest2026/);
 });
+
+test("an item with no citekey gets a new one in the native field", async () => {
+  const s = setup();
+  const r = await createNote(s.Gam, s.item);
+  assert.equal(r.citekey, "gamtest2026");
+  assert.equal(s.item.fields.citationKey, "gamtest2026");
+  assert.ok(fs.existsSync(path.join(s.vault, "lit/gamtest2026.md")));
+  assert.equal(s.saved.length, 1);
+});
+
+test("a new citekey avoids the keys of the library (native field and Extra) and of the vault", async () => {
+  const s = setup();
+  s.Gam.Zotero.DB.columnQueryAsync = async (sql, params) =>
+    params[0] === "citationKey" ? ["gamtest2026"] : ["Note\nCitation Key: gamtest2026a"];
+  s.Gam.state.index = buildIndex([{ path: "lit/gamtest2026b.md", text: "" }], { literatureFolder: "lit" });
+  const r = await createNote(s.Gam, s.item);
+  assert.ok(!["gamtest2026", "gamtest2026a", "gamtest2026b"].includes(r.citekey), r.citekey);
+  assert.match(r.citekey, /^gamtest2026[a-z]+$/);
+  assert.equal(s.item.fields.citationKey, r.citekey);
+});
+
+test("when the item type has no citationKey field, the key is the first line of Extra", async () => {
+  const s = setup();
+  s.Gam.Zotero.ItemFields.isValidForType = () => false;
+  s.item.fields.extra = "Citation Key: old\nPMID: 1";
+  const r = await createNote(s.Gam, s.item);
+  assert.equal(s.item.fields.extra, `Citation Key: ${r.citekey}\nPMID: 1`);
+  assert.equal(s.item.fields.citationKey, "");
+});
+
+test("when the new file exists, no citekey is saved and no child note is added", async () => {
+  const s = setup();
+  fs.mkdirSync(path.join(s.vault, "lit"));
+  fs.writeFileSync(path.join(s.vault, "lit/gamtest2026.md"), "mine");
+  await assert.rejects(createNote(s.Gam, s.item), (e) => e.name === "exists");
+  assert.equal(s.item.fields.citationKey, "");
+  assert.equal(s.saved.length, 0);
+  assert.equal(fs.readFileSync(path.join(s.vault, "lit/gamtest2026.md"), "utf8"), "mine");
+});
