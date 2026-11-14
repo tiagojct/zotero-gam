@@ -37,3 +37,24 @@ export function makeRefresher(run, { minInterval, now = () => Date.now() }) {
     return start();
   };
 }
+
+/**
+ * call() runs fn once, ms after the last call. cancel() stops a waiting call.
+ * timers: {setTimeout, clearTimeout}, so the module needs no globals.
+ */
+export function makeDebounce(fn, ms, { setTimeout, clearTimeout }) {
+  let id = null;
+  return {
+    call() {
+      if (id !== null) clearTimeout(id);
+      id = setTimeout(() => {
+        id = null;
+        fn();
+      }, ms);
+    },
+    cancel() {
+      if (id !== null) clearTimeout(id);
+      id = null;
+    },
+  };
+}

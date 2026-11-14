@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { makeRefresher } from "../content/lib/refresher.mjs";
+import { makeRefresher, makeDebounce } from "../content/lib/refresher.mjs";
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
@@ -48,4 +48,45 @@ test("two forced refreshes during one scan add only one more scan", async () => 
   release();
   await Promise.all([a, b, c]);
   assert.equal(runs, 2);
+});
+
+function fakeTimers() {
+  let now = 0;
+  const timers = new Map();
+  let next = 1;
+  return {
+    setTimeout: (fn, ms) => { timers.set(next, { fn, at: now + ms }); return next++; },
+    clearTimeout: (id) => { timers.delete(id); },
+    advance(ms) {
+      now += ms;
+      for (const [id, t] of [...timers]) if (t.at <= now) { timers.delete(id); t.fn(); }
+    },
+    pending: () => timers.size,
+  };
+}
+
+test("makeDebounce runs once, ms after the last call", () => {
+  const t = fakeTimers();
+  let runs = 0;
+  const d = makeDebounce(() => { runs += 1; }, 1000, t);
+  d.call();
+  t.advance(600);
+  d.call();
+  t.advance(600);
+  assert.equal(runs, 0);
+  t.advance(400);
+  assert.equal(runs, 1);
+  t.advance(5000);
+  assert.equal(runs, 1);
+});
+
+test("makeDebounce: cancel stops a waiting call", () => {
+  const t = fakeTimers();
+  let runs = 0;
+  const d = makeDebounce(() => { runs += 1; }, 1000, t);
+  d.call();
+  d.cancel();
+  t.advance(2000);
+  assert.equal(runs, 0);
+  assert.equal(t.pending(), 0);
 });

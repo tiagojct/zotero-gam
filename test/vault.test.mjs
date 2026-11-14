@@ -9,6 +9,7 @@ const { checkVault, createFile, listMarkdown } = await import("../content/vault.
 
 test("checkVault: null for a readable folder, a message for a missing or unreadable one", async () => {
   const v = tempVault();
+  fs.mkdirSync(path.join(v, ".obsidian"));
   assert.equal(await checkVault(v), null);
   assert.equal(await checkVault(v + "-none"), `Vault folder not found: ${v}-none`);
   fs.chmodSync(v, 0o000);
@@ -21,6 +22,13 @@ test("checkVault: null for a readable folder, a message for a missing or unreada
 
 test("checkVault: asks for a vault folder when none is set", async () => {
   assert.equal(await checkVault(""), "Set the vault folder in Settings > gam.");
+});
+
+test("checkVault: refuses a folder that is not an Obsidian vault", async () => {
+  const v = tempVault();
+  assert.equal(await checkVault(v), `Not an Obsidian vault (no .obsidian folder): ${v}`);
+  fs.writeFileSync(path.join(v, ".obsidian"), "");
+  assert.equal(await checkVault(v), `Not an Obsidian vault (no .obsidian folder): ${v}`);
 });
 
 test("createFile writes a new file and never overwrites", async () => {

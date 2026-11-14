@@ -6,7 +6,7 @@ import { currentKey } from "./lib/citekey.mjs";
 import { parseUris } from "./lib/obsidian.mjs";
 import { expandHome } from "./lib/paths.mjs";
 import { columnSignature, isNoteEvent } from "./lib/state.mjs";
-import { makeRefresher } from "./lib/refresher.mjs";
+import { makeRefresher, makeDebounce } from "./lib/refresher.mjs";
 import { registerColumn } from "./ui/column.mjs";
 import { registerPane } from "./ui/pane.mjs";
 import { registerMenus } from "./ui/menu.mjs";
@@ -17,12 +17,15 @@ const { setTimeout, clearTimeout } = ChromeUtils.importESModule("resource://gre/
 
 const PREF = "extensions.gam.";
 const MIN_REFRESH_MS = 30000;
+// Settings save on each key press: scan once, this long after the last change.
+const SETTINGS_DELAY_MS = 1000;
 
 let Zotero = null;
 let homeDir = "";
 let notifierID = null;
 let refresher = null;
 let prefObservers = [];
+let settingsChanged = null;
 let linksTimer = null;
 const logged = new Set();
 const focusHandlers = new Map();
@@ -94,11 +97,12 @@ export const Gam = {
     registerPane(this);
     registerMenus(this);
     refresher = makeRefresher(() => this.scan(), { minInterval: MIN_REFRESH_MS });
-    // A changed setting takes effect at once.
+    // A changed setting takes effect one second after the last change.
+    settingsChanged = makeDebounce(() => {
+      this.refresh({ force: true }).catch((e) => Zotero.logError(e));
+    }, SETTINGS_DELAY_MS, { setTimeout, clearTimeout });
     prefObservers = ["vault", "vaultName", "literatureFolder", "exclude"].map((name) =>
-      Zotero.Prefs.registerObserver(PREF + name, () => {
-        this.refresh({ force: true }).catch((e) => Zotero.logError(e));
-      }, true));
+      Zotero.Prefs.registerObserver(PREF + name, () => settingsChanged?.call(), true));
     // On ADDON_ENABLE the main window is already open, and Zotero does not call onMainWindowLoad for it.
     for (const win of Zotero.getMainWindows()) {
       if (win.ZoteroPane) this.onMainWindowLoad(win);
@@ -111,6 +115,8 @@ export const Gam = {
     notifierID = null;
     for (const symbol of prefObservers) Zotero.Prefs.unregisterObserver(symbol);
     prefObservers = [];
+    settingsChanged?.cancel();
+    settingsChanged = null;
     refresher = null;
     for (const win of [...focusHandlers.keys()]) this.onMainWindowUnload(win);
     focusHandlers.clear();

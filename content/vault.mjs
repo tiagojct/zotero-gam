@@ -1,6 +1,8 @@
 // File access to the vault. Uses IOUtils and PathUtils (available in system modules).
 
-/** null when root is a folder that can be read, else the message for the user. */
+import { joinPath } from "./lib/paths.mjs";
+
+/** null when root is an Obsidian vault folder that can be read, else the message for the user. */
 export async function checkVault(root) {
   if (!root) return "Set the vault folder in Settings > gam.";
   try {
@@ -13,6 +15,14 @@ export async function checkVault(root) {
   } catch {
     return `Vault folder not readable: ${root}`;
   }
+  // A wrong folder (for example the home folder, while the path is typed in Settings) is not scanned.
+  let obsidian = null;
+  try {
+    obsidian = await IOUtils.stat(joinPath(root, ".obsidian"));
+  } catch {
+    // Not there.
+  }
+  if (obsidian?.type !== "directory") return `Not an Obsidian vault (no .obsidian folder): ${root}`;
   return null;
 }
 
