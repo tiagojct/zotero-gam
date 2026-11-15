@@ -76,3 +76,28 @@ test("after Create note, the section of the same item is drawn again", async () 
   await done;
   assert.ok(body.text().includes("Title of A"), body.text());
 });
+
+test("a note with no Zotero link gets the button Add Zotero link; it calls the action", async () => {
+  const s = setup();
+  const calls = [];
+  s.Gam.actions.linkNote = async (i) => { calls.push(i.id); };
+  s.Gam.state.index = buildIndex([{ path: "lit/x.md", text: "---\ncitekey: x2020\nzotero: zotero://select/library/items/KEY10000\n---\n" }], { literatureFolder: "lit" });
+  const body = new Node("div");
+  const a = s.item(1, "A");
+  render(s.Gam, { doc, body, item: a });
+  const button = body.find((n) => n.tag === "button" && n.textContent === "Add Zotero link");
+  assert.ok(button, body.text());
+  await button.listeners.click({ target: button });
+  assert.deepEqual(calls, [1]);
+});
+
+test("a note with its Zotero link and citekey has no Add Zotero link button", () => {
+  const s = setup();
+  s.Gam.itemInfo = (i) => ({ citekey: "x2020", itemKey: i.key, doi: "" });
+  s.Gam.state.index = buildIndex([{ path: "lit/x.md", text: "---\ncitekey: x2020\n---\n" }], { literatureFolder: "lit" });
+  s.Gam.state.links = new Map([[1, [{ vault: "v", file: "lit/x.md" }]]]);
+  const body = new Node("div");
+  render(s.Gam, { doc, body, item: s.item(1, "A") });
+  assert.equal(body.find((n) => n.tag === "button" && n.textContent === "Add Zotero link"), null);
+  assert.ok(body.find((n) => n.tag === "button" && n.textContent === "Open in Obsidian"));
+});

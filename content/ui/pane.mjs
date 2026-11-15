@@ -1,6 +1,6 @@
 // The "Vault" section of the item pane.
 
-import { noteState, openInObsidian } from "./common.mjs";
+import { noteState, missingLinks, openInObsidian } from "./common.mjs";
 
 const PANE_ID = "gam-vault";
 
@@ -39,16 +39,17 @@ export function render(Gam, { doc, body, item, setSectionSummary }) {
     return;
   }
   const state = noteState(Gam, item);
-  // The button is off while the note is made, so a second click cannot start a second write.
-  const create = (event) => {
+  // The button is off while the action runs, so a second click cannot start a second write.
+  const run = (action) => (event) => {
     const b = event?.target;
     if (b) b.disabled = true;
-    return Gam.actions.createNote?.(item).finally(() => {
+    return Promise.resolve(action?.(item)).finally(() => {
       if (b?.isConnected) b.disabled = false;
       // Draw again only if the body still shows this item: the user can select another item meanwhile.
       if (body.isConnected && shownItem.get(body) === item) render(Gam, { doc, body, item, setSectionSummary });
     });
   };
+  const create = run(Gam.actions.createNote);
 
   if (state.kind === "note") {
     const n = state.note;
@@ -57,6 +58,9 @@ export function render(Gam, { doc, body, item, setSectionSummary }) {
     box.append(el(doc, "div", [n.status || "no status", tags.join(", ")].filter(Boolean).join(" · "), "opacity: 0.8;"));
     if (n.summary) box.append(el(doc, "div", n.summary, "margin-top: 6px; white-space: pre-wrap;"));
     box.append(button(doc, "Open in Obsidian", () => openInObsidian(Gam, n.path)));
+    if (Gam.actions.linkNote && missingLinks(Gam, item)) {
+      box.append(button(doc, "Add Zotero link", run(Gam.actions.linkNote)));
+    }
     setSectionSummary?.(n.status || "");
   } else if (state.kind === "missing") {
     box.append(el(doc, "div", `The linked note does not exist: ${state.missingPath}`));

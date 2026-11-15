@@ -1,7 +1,7 @@
 // Context menu entries on items and the Tools menu entry.
 
-import { noteState, openInObsidian } from "./common.mjs";
-import { createNotes } from "../create.mjs";
+import { noteState, missingLinks, openInObsidian } from "./common.mjs";
+import { createNotes, linkNotes } from "../create.mjs";
 
 export function registerMenus(Gam) {
   const Zotero = Gam.Zotero;
@@ -35,6 +35,17 @@ export function registerMenus(Gam) {
         onCommand: (ev, ctx) => {
           const items = (ctx.items || []).filter((i) => i.isRegularItem() && noteState(Gam, i).kind !== "note");
           createNotes(Gam, items).catch((e) => Zotero.logError(e));
+        },
+      },
+      {
+        menuType: "menuitem",
+        l10nID: "gam-menu-link",
+        onShowing: (ev, ctx) => {
+          ctx.setVisible((ctx.items || []).some((i) => missingLinks(Gam, i)));
+        },
+        onCommand: (ev, ctx) => {
+          const items = (ctx.items || []).filter((i) => missingLinks(Gam, i));
+          linkNotes(Gam, items).catch((e) => Zotero.logError(e));
         },
       },
       {

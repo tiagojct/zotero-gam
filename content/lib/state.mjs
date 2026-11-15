@@ -15,6 +15,24 @@ export function noteState({ index, links, vaultName, citekey, itemKey }) {
   return { kind: "none" };
 }
 
+const nfc = (s) => String(s ?? "").normalize("NFC");
+
+/**
+ * What the item lacks for the literature note that the index has for it:
+ * childNote: no obsidian:// link of this vault goes to the note;
+ * citekey: the citekey of the note, when the item has no citekey (else null).
+ * Returns {note, childNote, citekey}, or null when there is no note or nothing is missing.
+ */
+export function missingLinks({ index, links, vaultName, citekey, itemKey }) {
+  const note = index?.noteFor({ citekey, itemKey });
+  if (!note) return null;
+  const vault = String(vaultName).toLowerCase();
+  const linked = (links || []).some((l) => l.vault.toLowerCase() === vault && nfc(l.file) === nfc(note.path));
+  const key = citekey ? null : note.citekey;
+  if (linked && !key) return null;
+  return { note, childNote: !linked, citekey: key };
+}
+
 export function columnText(state) {
   if (state.kind === "note") return state.note.status || "no status";
   if (state.kind === "missing") return "missing";

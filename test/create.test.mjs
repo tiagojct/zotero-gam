@@ -6,7 +6,7 @@ import { installFakeIO, tempVault } from "./helpers/fake-io.mjs";
 import { buildIndex } from "../content/lib/index.mjs";
 
 installFakeIO();
-const { createNote, createNotes } = await import("../content/create.mjs");
+const { createNote, createNotes, linkNote, linkNotes } = await import("../content/create.mjs");
 
 function setup({ citationKey = "", editable = true, noteSaveFails = false, links = [] } = {}) {
   const vault = tempVault();
@@ -176,4 +176,72 @@ test("when the new file exists, no citekey is saved and no child note is added",
   assert.equal(s.item.fields.citationKey, "");
   assert.equal(s.saved.length, 0);
   assert.equal(fs.readFileSync(path.join(s.vault, "lit/gamtest2026.md"), "utf8"), "mine");
+});
+
+const LINKED = "---\ncitekey: cai2026\nzotero: zotero://select/library/items/ABCDEFGH\n---\n";
+function withNote(s, links = []) {
+  s.Gam.state.index = buildIndex([{ path: "lit/cai2026.md", text: LINKED }], { literatureFolder: "lit" });
+  s.Gam.state.links = new Map([[1, links]]);
+  return s;
+}
+
+test("linkNote adds the child note in the Create note format and writes nothing in the vault", async () => {
+  const s = withNote(setup({ citationKey: "cai2026" }));
+  s.Gam.prefs.marker = () => "gam";
+  const r = await linkNote(s.Gam, s.item);
+  assert.deepEqual(r, { childNote: true, citekey: null, warning: null });
+  assert.equal(s.saved.length, 1);
+  assert.equal(s.saved[0].html,
+    '<div><p>Literature note in the vault.</p><p><a href="obsidian://open?vault=v&amp;file=lit%2Fcai2026">Obsidian: cai2026</a></p></div>');
+  assert.deepEqual(s.saved[0].tags, ["gam"]);
+  assert.equal(s.saved[0].parentID, 1);
+  assert.deepEqual(fs.readdirSync(s.vault), []);
+  assert.equal(s.refreshes(), 1);
+});
+
+test("linkNote sets the citekey of the note when the item has none", async () => {
+  const s = withNote(setup(), [{ vault: "v", file: "lit/cai2026.md" }]);
+  const r = await linkNote(s.Gam, s.item);
+  assert.deepEqual(r, { childNote: false, citekey: "cai2026", warning: null });
+  assert.equal(s.item.fields.citationKey, "cai2026");
+  assert.equal(s.saved.length, 0);
+});
+
+test("linkNote does not set a citekey that another item has, and says so", async () => {
+  const s = withNote(setup());
+  s.Gam.Zotero.DB.columnQueryAsync = async (sql, params) => (params[0] === "citationKey" ? ["cai2026"] : []);
+  const r = await linkNote(s.Gam, s.item);
+  assert.equal(r.citekey, null);
+  assert.equal(r.childNote, true);
+  assert.match(r.warning, /The citekey "cai2026" is used by another item/);
+  assert.equal(s.item.fields.citationKey, "");
+  assert.equal(s.saved.length, 1);
+});
+
+test("linkNote changes nothing when the link and the citekey are there", async () => {
+  const s = withNote(setup({ citationKey: "cai2026" }), [{ vault: "v", file: "lit/cai2026.md" }]);
+  const r = await linkNote(s.Gam, s.item);
+  assert.deepEqual(r, { childNote: false, citekey: null, warning: null });
+  assert.equal(s.saved.length, 0);
+  assert.equal(s.refreshes(), 0);
+});
+
+test("linkNote refuses items in the trash and read-only items", async () => {
+  const t = withNote(setup({ citationKey: "cai2026" }));
+  t.item.isInTrash = () => true;
+  await assert.rejects(linkNote(t.Gam, t.item), /in the trash/);
+  const r = withNote(setup({ citationKey: "cai2026", editable: false }));
+  await assert.rejects(linkNote(r.Gam, r.item), /cannot be changed/);
+  assert.equal(t.saved.length + r.saved.length, 0);
+});
+
+test("linkNotes reports one summary for several items", async () => {
+  const s = withNote(setup({ citationKey: "cai2026" }));
+  const messages = [];
+  s.Gam.Zotero.ProgressWindow = class { changeHeadline() {} addDescription(m) { messages.push(m); } show() {} startCloseTimer() {} };
+  const other = s.makeItem(2, "BBBBBBBB", { citationKey: "none2020" });
+  const r = await linkNotes(s.Gam, [s.item, other]);
+  assert.equal(r.linked, 1);
+  assert.equal(s.refreshes(), 1);
+  assert.equal(messages.join("\n"), "1 item(s) linked to their notes.");
 });

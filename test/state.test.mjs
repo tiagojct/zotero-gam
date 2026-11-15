@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { noteState, columnText } from "../content/lib/state.mjs";
+import { noteState, columnText, missingLinks } from "../content/lib/state.mjs";
 import { buildIndex } from "../content/lib/index.mjs";
 
 const index = buildIndex([
@@ -61,4 +61,36 @@ test("isNoteEvent: only events on notes count", () => {
   assert.equal(isNoteEvent("delete", [9], getItem, known), false);
   assert.equal(isNoteEvent("delete", [5], getItem, known), true);
   assert.equal(isNoteEvent("refresh", [2], getItem, known), false);
+});
+
+const keyed = buildIndex([
+  { path: "lit/cai2026.md", text: "---\ncitekey: cai2026\nzotero: zotero://select/library/items/ABCDEFGH\n---\n" },
+], { literatureFolder: "lit" });
+
+test("missingLinks: null when there is no note, or when the link and the citekey are there", () => {
+  assert.equal(missingLinks({ index: null, links: [], vaultName: "v", citekey: null, itemKey: "ABCDEFGH" }), null);
+  assert.equal(missingLinks({ index: keyed, links: [], vaultName: "v", citekey: null, itemKey: "ZZZZZZZZ" }), null);
+  const links = [{ vault: "V", file: "lit/cai2026.md" }];
+  assert.equal(missingLinks({ index: keyed, links, vaultName: "v", citekey: "cai2026", itemKey: "ABCDEFGH" }), null);
+});
+
+test("missingLinks: the child note when no link of this vault goes to the note", () => {
+  const links = [{ vault: "other", file: "lit/cai2026.md" }, { vault: "v", file: "lit/x.md" }];
+  const m = missingLinks({ index: keyed, links, vaultName: "v", citekey: "cai2026", itemKey: "ABCDEFGH" });
+  assert.equal(m.note.path, "lit/cai2026.md");
+  assert.equal(m.childNote, true);
+  assert.equal(m.citekey, null);
+});
+
+test("missingLinks: the citekey of the note when the item has none", () => {
+  const links = [{ vault: "v", file: "lit/cai2026.md" }];
+  const m = missingLinks({ index: keyed, links, vaultName: "v", citekey: null, itemKey: "ABCDEFGH" });
+  assert.equal(m.childNote, false);
+  assert.equal(m.citekey, "cai2026");
+});
+
+test("missingLinks: the link compares the vault name without case and the path in NFC", () => {
+  const ix = buildIndex([{ path: "lit/ciência2020.md", text: "" }], { literatureFolder: "lit" });
+  const links = [{ vault: "V", file: "lit/ciência2020.md" }];
+  assert.equal(missingLinks({ index: ix, links, vaultName: "v", citekey: "ciência2020", itemKey: "X" }), null);
 });

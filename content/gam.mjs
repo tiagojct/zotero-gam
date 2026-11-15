@@ -10,7 +10,7 @@ import { makeRefresher, makeDebounce } from "./lib/refresher.mjs";
 import { registerColumn } from "./ui/column.mjs";
 import { registerPane } from "./ui/pane.mjs";
 import { registerMenus } from "./ui/menu.mjs";
-import { createNote, notify } from "./create.mjs";
+import { createNote, linkNote, notify } from "./create.mjs";
 import { listMarkdown, checkVault, realFolderCase } from "./vault.mjs";
 
 const { setTimeout, clearTimeout } = ChromeUtils.importESModule("resource://gre/modules/Timer.sys.mjs");
@@ -99,6 +99,9 @@ export const Gam = {
       },
     }, ["item"], "gam");
     this.actions.createNote = (item) => createNote(this, item).catch((e) => {
+      notify(Zotero, e.message || String(e), false);
+    });
+    this.actions.linkNote = (item) => linkNote(this, item).catch((e) => {
       notify(Zotero, e.message || String(e), false);
     });
     registerColumn(this);

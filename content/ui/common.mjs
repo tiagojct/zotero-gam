@@ -1,6 +1,6 @@
 // Helpers that the column, the pane and the menus share.
 
-import { noteState as pureNoteState } from "../lib/state.mjs";
+import { noteState as pureNoteState, missingLinks as pureMissingLinks } from "../lib/state.mjs";
 import { buildUri } from "../lib/obsidian.mjs";
 
 /** The vault state of a Zotero item (see lib/state.mjs). */
@@ -8,6 +8,19 @@ export function noteState(Gam, item) {
   if (!item?.isRegularItem?.()) return { kind: "none" };
   const { citekey, itemKey } = Gam.itemInfo(item);
   return pureNoteState({
+    index: Gam.state.index,
+    links: Gam.state.links.get(item.id) || [],
+    vaultName: Gam.prefs.vaultName(),
+    citekey,
+    itemKey,
+  });
+}
+
+/** What a Zotero item lacks for its literature note (see lib/state.mjs), or null. */
+export function missingLinks(Gam, item) {
+  if (!item?.isRegularItem?.()) return null;
+  const { citekey, itemKey } = Gam.itemInfo(item);
+  return pureMissingLinks({
     index: Gam.state.index,
     links: Gam.state.links.get(item.id) || [],
     vaultName: Gam.prefs.vaultName(),
