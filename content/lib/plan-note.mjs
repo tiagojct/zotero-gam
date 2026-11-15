@@ -16,10 +16,11 @@ export function localDate(d = new Date()) {
  * json: the Zotero item JSON. existingKey: the item's citekey or null.
  * taken: the citekeys of the library and the vault (for a new key).
  * libraryPath: "library" for the user library, "groups/<id>" for a group.
+ * proposedKey: the new citekey to use when the item has none (a key that a preview showed).
  * Returns {citekey, newKey, relPath, text, uri, childHtml}. relPath is from the vault root.
  */
-export function planNote({ json, itemKey, existingKey, taken, vaultName, literatureFolder, today, libraryPath = "library" }) {
-  const citekey = existingKey || uniqueKey(baseKey(json), taken);
+export function planNote({ json, itemKey, existingKey, taken, vaultName, literatureFolder, today, libraryPath = "library", proposedKey = null }) {
+  const citekey = existingKey || proposedKey || uniqueKey(baseKey(json), taken);
   const relPath = joinPath(literatureFolder, `${citekey}.md`).replace(/^\//, "");
   const uri = buildUri(vaultName, relPath);
   return {

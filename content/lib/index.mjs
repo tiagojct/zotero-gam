@@ -108,6 +108,29 @@ export function buildIndex(files, { literatureFolder, cache = null }) {
       out.delete(own);
       return [...out].sort();
     },
+    /** The number of files in citedIn(). */
+    citedCount(args = {}) {
+      return this.citedIn(args).length;
+    },
+    /**
+     * A string that changes when the references of any file change (so, when a "Cited in" count
+     * can change). A hash, not the references: a vault can have many thousands.
+     */
+    refsSignature() {
+      let h = 0x811c9dc5;
+      const feed = (text) => {
+        for (let i = 0; i < text.length; i++) {
+          h ^= text.charCodeAt(i);
+          h = Math.imul(h, 0x01000193) >>> 0;
+        }
+      };
+      for (const [tag, map] of [["c", refsByCitekey], ["i", refsByItemKey], ["d", refsByDoi]]) {
+        for (const key of [...map.keys()].sort()) {
+          feed(`${tag}\t${key}\t${[...map.get(key)].sort().join("\t")}\n`);
+        }
+      }
+      return h.toString(16);
+    },
     citekeys() {
       return new Set(byCitekey.keys());
     },

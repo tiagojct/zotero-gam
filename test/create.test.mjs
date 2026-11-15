@@ -6,7 +6,7 @@ import { installFakeIO, tempVault } from "./helpers/fake-io.mjs";
 import { buildIndex } from "../content/lib/index.mjs";
 
 installFakeIO();
-const { createNote, createNotes, linkNote, linkNotes } = await import("../content/create.mjs");
+const { createNote, createNotes, linkNote, linkNotes, createNotesForCollection, collectionItems } = await import("../content/create.mjs");
 
 function setup({ citationKey = "", editable = true, noteSaveFails = false, links = [] } = {}) {
   const vault = tempVault();
@@ -274,4 +274,132 @@ test("linkNotes reports one summary for several items", async () => {
   assert.equal(r.linked, 1);
   assert.equal(s.refreshes(), 1);
   assert.equal(messages.join("\n"), "1 item(s) linked to their notes.");
+});
+
+// Batch for a collection: preview first, then the writes of the preview.
+
+function batchSetup(count = 3) {
+  const s = setup();
+  s.Gam.state.literatureFolder = "lit";
+  const items = [s.item, ...Array.from({ length: count - 1 }, (_, i) => s.makeItem(i + 2, `KEY0000${i + 2}`, {}))];
+  const notes = () => (fs.existsSync(path.join(s.vault, "lit")) ? fs.readdirSync(path.join(s.vault, "lit")).sort() : []);
+  return { ...s, items, notes };
+}
+
+test("a batch shows the preview and writes nothing when the user cancels", async () => {
+  const s = batchSetup();
+  let preview = null;
+  const r = await createNotesForCollection(s.Gam, s.items, { name: "C", confirm: async (p) => { preview = p; return null; } });
+  assert.equal(r.cancelled, true);
+  assert.equal(r.made, 0);
+  assert.deepEqual(preview.rows.map((x) => x.relPath), ["lit/gamtest2026.md", "lit/gamtest2026a.md", "lit/gamtest2026b.md"]);
+  assert.equal(preview.folder, "lit");
+  assert.deepEqual(s.notes(), []);
+  assert.equal(s.saved.length, 0);
+  assert.equal(s.refreshes(), 0);
+});
+
+test("a batch writes the notes of the preview with its citekeys, and refreshes once", async () => {
+  const s = batchSetup();
+  const r = await createNotesForCollection(s.Gam, s.items, { confirm: async (p) => p.rows.map((x) => x.id) });
+  assert.equal(r.made, 3);
+  assert.deepEqual(r.errors, []);
+  assert.deepEqual(s.notes(), ["gamtest2026.md", "gamtest2026a.md", "gamtest2026b.md"]);
+  assert.deepEqual(s.items.map((i) => i.fields.citationKey), ["gamtest2026", "gamtest2026a", "gamtest2026b"]);
+  assert.equal(s.saved.length, 3);
+  assert.equal(s.refreshes(), 1);
+});
+
+test("a row that the user clears is not written, and the others keep the citekeys of the preview", async () => {
+  const s = batchSetup();
+  const r = await createNotesForCollection(s.Gam, s.items, { confirm: async () => [2, 3] });
+  assert.equal(r.made, 2);
+  assert.deepEqual(s.notes(), ["gamtest2026a.md", "gamtest2026b.md"]);
+  assert.ok(!s.items[0].fields.citationKey);
+});
+
+test("a citekey that is taken after the preview fails that row only", async () => {
+  const s = batchSetup(2);
+  const r = await createNotesForCollection(s.Gam, s.items, {
+    confirm: async (p) => {
+      s.Gam.Zotero.DB.columnQueryAsync = async (sql, params) => (params?.[0] === "citationKey" ? ["gamtest2026a"] : []);
+      return p.rows.map((x) => x.id);
+    },
+  });
+  assert.equal(r.made, 1);
+  assert.equal(r.errors.length, 1);
+  assert.match(r.errors[0], /gamtest2026a.*used now/);
+  assert.deepEqual(s.notes(), ["gamtest2026.md"]);
+});
+
+test("items that have a note are left out of the preview; with nothing to create there is no preview", async () => {
+  const s = batchSetup(2);
+  s.Gam.state.index = buildIndex([{ path: "lit/a2020.md", text: "---\ncitekey: a2020\n---\n" }], { literatureFolder: "lit" });
+  s.items[0].fields.citationKey = "a2020";
+  let calls = 0;
+  const confirm = async (p) => { calls += 1; return p.rows.map((x) => x.id); };
+  const r1 = await createNotesForCollection(s.Gam, s.items, { confirm });
+  assert.equal(r1.made, 1);
+  assert.deepEqual(s.notes(), ["gamtest2026.md"]);
+  // Now both have notes in the index.
+  s.Gam.state.index = buildIndex([
+    { path: "lit/a2020.md", text: "---\ncitekey: a2020\n---\n" },
+    { path: "lit/gamtest2026.md", text: "---\ncitekey: gamtest2026\n---\n" },
+  ], { literatureFolder: "lit" });
+  const r2 = await createNotesForCollection(s.Gam, s.items, { confirm });
+  assert.equal(calls, 1);
+  assert.equal(r2.made, 0);
+});
+
+test("a read-only item is left out of the preview and named in the summary", async () => {
+  const s = batchSetup(2);
+  s.items[1].isEditable = () => false;
+  let preview = null;
+  await createNotesForCollection(s.Gam, s.items, { confirm: async (p) => { preview = p; return null; } });
+  assert.deepEqual(preview.rows.map((x) => x.id), [1]);
+  assert.deepEqual(preview.skipped, ["1 cannot be changed"]);
+});
+
+test("a batch without a vault index writes nothing and does not open the preview", async () => {
+  const s = batchSetup(2);
+  s.Gam.state.index = null;
+  s.Gam.state.error = "The vault folder does not exist.";
+  let calls = 0;
+  const r = await createNotesForCollection(s.Gam, s.items, { confirm: async () => { calls += 1; return []; } });
+  assert.equal(calls, 0);
+  assert.equal(r.made, 0);
+  assert.match(r.errors[0], /vault folder does not exist/);
+});
+
+test("a second batch while the first is open does not start", async () => {
+  const s = batchSetup(2);
+  let release;
+  const first = createNotesForCollection(s.Gam, s.items, {
+    confirm: () => new Promise((resolve) => { release = () => resolve(null); }),
+  });
+  await new Promise((r) => setTimeout(r, 20));
+  const second = await createNotesForCollection(s.Gam, s.items, { confirm: async () => assert.fail("opened") });
+  assert.match(second.errors[0], /still running/);
+  release();
+  await first;
+});
+
+test("collectionItems searches the collection, with subcollections only when Zotero shows them", async () => {
+  const conditions = [];
+  class FakeSearch {
+    addCondition(...c) { conditions.push(c); }
+    async search() { return [1, 2, 3]; }
+  }
+  const regular = (id) => ({ id, isRegularItem: () => true });
+  const make = (recursive) => ({
+    Search: FakeSearch,
+    Prefs: { get: (k) => (k === "recursiveCollections" ? recursive : undefined) },
+    Items: { getAsync: async (ids) => [...ids.map(regular), { id: 9, isRegularItem: () => false }] },
+  });
+  const items = await collectionItems(make(false), { id: 7, libraryID: 1 });
+  assert.deepEqual(items.map((i) => i.id), [1, 2, 3]);
+  assert.deepEqual(conditions, [["noChildren", "true"], ["collectionID", "is", 7]]);
+  conditions.length = 0;
+  await collectionItems(make(true), { id: 7, libraryID: 1 });
+  assert.deepEqual(conditions.at(-1), ["recursive", "true"]);
 });

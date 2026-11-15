@@ -1,6 +1,8 @@
 // "Create note": write the literature note and the Zotero child note.
 
 import { planNote, localDate, CHILD_NOTE_TEXT } from "./lib/plan-note.mjs";
+import { planBatch, skipSummary } from "./lib/plan-batch.mjs";
+import { safeFileKey } from "./lib/citekey.mjs";
 import { joinPath } from "./lib/paths.mjs";
 import { buildUri, childNoteHtml, parseUris } from "./lib/obsidian.mjs";
 import { missingLinks, linksTo } from "./lib/state.mjs";
@@ -8,7 +10,7 @@ import { missingLinks, linksTo } from "./lib/state.mjs";
 // Items that linkNote works on now: a second call for the same item does nothing.
 const linking = new Set();
 import { createFile } from "./vault.mjs";
-import { openInObsidian } from "./ui/common.mjs";
+import { openInObsidian, noteState, canChange } from "./ui/common.mjs";
 
 /** The citekeys in the library: the native field and "Citation Key:" lines in Extra. */
 async function libraryCitekeys(Zotero) {
@@ -44,11 +46,6 @@ function notify(Zotero, message, ok = true) {
   pw.addDescription(message);
   pw.show();
   pw.startCloseTimer(ok ? 4000 : 8000);
-}
-
-/** A citekey that is safe as a file name inside the literature folder. */
-function safeFileKey(key) {
-  return /^[^/\\\0]+$/.test(key) && !key.startsWith(".");
 }
 
 /** Throws with a message for the user when gam must not change the item. */
@@ -91,8 +88,10 @@ async function addChildNote(Gam, item, html) {
  * Create the note for one item. Returns {path, citekey, openError}. Throws with a message for the user.
  * openError is the message when the note was made but Obsidian did not open it, else null.
  * refresh: false when the caller refreshes once after several items.
+ * proposedKey: for an item without a citekey, the new citekey that a preview showed. It is used
+ * as it is, or the call throws when the key is taken now.
  */
-export async function createNote(Gam, item, { open = Gam.prefs.openAfterCreate(), quiet = false, refresh = true } = {}) {
+export async function createNote(Gam, item, { open = Gam.prefs.openAfterCreate(), quiet = false, refresh = true, proposedKey = null } = {}) {
   const Zotero = Gam.Zotero;
   checkItem(Gam, item);
   const { citekey: existingKey } = Gam.itemInfo(item);
@@ -100,7 +99,11 @@ export async function createNote(Gam, item, { open = Gam.prefs.openAfterCreate()
     throw new Error(`The citekey "${existingKey}" cannot be used as a file name. Nothing was written.`);
   }
   const taken = existingKey ? new Set() : new Set([...(await libraryCitekeys(Zotero)), ...Gam.state.index.citekeys()]);
+  if (!existingKey && proposedKey && taken.has(proposedKey)) {
+    throw new Error(`The citekey "${proposedKey}" is used now, after the preview. Nothing was written.`);
+  }
   const plan = planNote({
+    proposedKey,
     json: item.toJSON(),
     itemKey: item.key,
     existingKey,
@@ -232,6 +235,108 @@ export async function linkNotes(Gam, items) {
   notify(Zotero, [`${linked} item(s) linked to their notes.`, ...errors, ...warnings].join("\n"),
     errors.length === 0 && warnings.length === 0);
   return { linked, errors, warnings };
+}
+
+/**
+ * The regular items of a collection, in the order of the item list of Zotero: the same items
+ * that the list shows, so the "Show Items from Subcollections" setting counts.
+ */
+export async function collectionItems(Zotero, collection) {
+  const search = new Zotero.Search();
+  search.libraryID = collection.libraryID;
+  search.addCondition("noChildren", "true");
+  search.addCondition("collectionID", "is", collection.id);
+  if (Zotero.Prefs.get("recursiveCollections")) search.addCondition("recursive", "true");
+  const ids = await search.search();
+  const items = ids?.length ? await Zotero.Items.getAsync(ids) : [];
+  return items.filter((i) => i.isRegularItem());
+}
+
+/** The plan for items (see lib/plan-batch.mjs), made without any write. */
+export async function planItems(Gam, items) {
+  const Zotero = Gam.Zotero;
+  const taken = new Set([...(await libraryCitekeys(Zotero)), ...Gam.state.index.citekeys()]);
+  const entries = items.map((item) => {
+    const json = item.toJSON();
+    let skip = null;
+    if (noteState(Gam, item).kind === "note") skip = "already have a note";
+    else if (!canChange(item)) skip = "cannot be changed";
+    return {
+      id: item.id,
+      title: json.title || item.getField?.("title") || "",
+      json,
+      itemKey: item.key,
+      existingKey: Gam.itemInfo(item).citekey || null,
+      libraryPath: item.library?.libraryType === "group" ? `groups/${item.library.groupID}` : "library",
+      skip,
+    };
+  });
+  return planBatch(entries, {
+    taken,
+    hasPath: (path) => Gam.state.index.hasPath(path),
+    vaultName: Gam.prefs.vaultName(),
+    literatureFolder: Gam.state.literatureFolder || Gam.prefs.literatureFolder(),
+    today: localDate(),
+  });
+}
+
+// True while a batch for a collection runs: a second one waits for the first.
+let batchRunning = false;
+
+/**
+ * Create the notes for the items of a collection, in two steps. First the plan is made and shown
+ * with confirm(preview): nothing is written. confirm returns the ids of the rows to create, or
+ * null to cancel. Then the notes are made with the citekeys and the paths of the preview.
+ * Returns {made, errors, warnings, cancelled}.
+ */
+export async function createNotesForCollection(Gam, items, { name = "", confirm }) {
+  const Zotero = Gam.Zotero;
+  const stop = (message, ok = false) => {
+    notify(Zotero, message, ok);
+    return { made: 0, errors: ok ? [] : [message], warnings: [], cancelled: true };
+  };
+  if (batchRunning) return stop("A batch of notes is still running.");
+  if (!Gam.state.index) return stop(Gam.state.error || "The vault index is not ready.");
+  batchRunning = true;
+  try {
+    const rows = await planItems(Gam, items);
+    const toCreate = rows.filter((r) => r.status === "create");
+    const skipped = skipSummary(rows);
+    if (!toCreate.length) {
+      return stop(["No note to create.", ...skipped.map((l) => `${l}.`)].join("\n"), true);
+    }
+    const chosen = await confirm({
+      name,
+      folder: Gam.state.literatureFolder || Gam.prefs.literatureFolder(),
+      rows: toCreate,
+      skipped,
+    });
+    if (!chosen?.length) return { made: 0, errors: [], warnings: [], cancelled: true };
+
+    const byId = new Map(items.map((i) => [i.id, i]));
+    const wanted = new Set(chosen);
+    let made = 0;
+    const errors = [];
+    const warnings = [];
+    for (const row of toCreate) {
+      if (!wanted.has(row.id)) continue;
+      try {
+        const r = await createNote(Gam, byId.get(row.id), {
+          open: false, quiet: true, refresh: false, proposedKey: row.newKey ? row.citekey : null,
+        });
+        made += 1;
+        if (r.openError) warnings.push(r.openError);
+      } catch (e) {
+        errors.push(`${row.relPath}: ${e.message || String(e)}`);
+      }
+    }
+    await Gam.refresh({ force: true });
+    notify(Zotero, [`${made} note(s) created.`, ...errors, ...warnings].join("\n"),
+      errors.length === 0 && warnings.length === 0);
+    return { made, errors, warnings, cancelled: false };
+  } finally {
+    batchRunning = false;
+  }
 }
 
 export { notify };

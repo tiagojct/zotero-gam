@@ -46,3 +46,8 @@ test("extractRefs keeps parentheses inside a DOI", () => {
 test("extractRefs reads Zotero links to group items", () => {
   assert.deepEqual([...extractRefs("zotero://select/groups/4321/items/ABCDEFGH").itemKeys], ["ABCDEFGH"]);
 });
+
+test("extractRefs reads the braced Pandoc form of a key", () => {
+  const r = extractRefs("As in [@{doe_2020.}, p. 3] and [@{a#b}; @plain2020] but not me@{x}.");
+  assert.deepEqual([...r.citekeys].sort(), ["a#b", "doe_2020.", "plain2020"]);
+});

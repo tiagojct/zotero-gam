@@ -29,3 +29,16 @@ test("the child note links to the new file in the attach_note format", () => {
 test("localDate is YYYY-MM-DD in local time", () => {
   assert.equal(localDate(new Date(2026, 0, 5, 23, 30)), "2026-01-05");
 });
+
+test("a proposed key is used as it is for an item without a citekey", () => {
+  const p = planNote({ ...base, existingKey: null, proposedKey: "gamtest2026b", taken: new Set() });
+  assert.equal(p.citekey, "gamtest2026b");
+  assert.equal(p.newKey, true);
+  assert.equal(p.relPath, "sub-sub/literature/gamtest2026b.md");
+});
+
+test("an existing citekey wins over a proposed key", () => {
+  const p = planNote({ ...base, existingKey: "mykey2026", proposedKey: "other", taken: new Set() });
+  assert.equal(p.citekey, "mykey2026");
+  assert.equal(p.newKey, false);
+});

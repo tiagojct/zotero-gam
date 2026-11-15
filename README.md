@@ -7,10 +7,13 @@ A gam is a meeting of two whaling ships at sea to exchange news.
 ## What it does
 
 - Column "Note": the status of the item's literature note in the vault (for example to-read), "missing" when the linked file does not exist, empty when there is no note.
+- Column "Cited in": the number of vault notes that cite the item, by citekey (`[[key]]`, `@key`, `[@key]`, `[@{key}]`), Zotero link or DOI. The first click on the header shows the most cited items first.
 - Item pane section "Vault": the title, status, tags and summary of the note, and the vault notes that cite the item.
 - Create note: writes `<literature folder>/<citekey>.md` with the frontmatter that Sub-Sub uses, and adds a Zotero child note with an obsidian:// link.
+- Create notes for collection: for the items of a collection that have no note. It shows a list of the files and citekeys first and writes nothing until you select Create. Clear the box of a note to leave it out. The items are those that the item list shows, so "Show Items from Subcollections" counts.
 - Add Zotero link to note: for an item whose literature note is in the vault but has no child note with the obsidian:// link (for example a note that another tool wrote), adds that child note. It also sets the citekey of the note when the item has none and no other item uses it. It writes nothing in the vault.
-- Context menu: Open note in Obsidian, Create note, Add Zotero link to note, Copy [[citekey]].
+- Context menu of items: Open note in Obsidian, Create note, Add Zotero link to note, Copy [[citekey]], Copy [@citekey] (a Pandoc citation; a key with characters that Pandoc would cut short is written as `[@{key}]`).
+- Context menu of collections: Create notes for collection.
 - Tools menu: Refresh gam index.
 
 The plugin never changes or overwrites an existing vault file.

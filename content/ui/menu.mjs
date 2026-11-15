@@ -1,7 +1,9 @@
 // Context menu entries on items and the Tools menu entry.
 
 import { noteState, missingLinks, canChange, openInObsidian } from "./common.mjs";
-import { createNotes, linkNotes } from "../create.mjs";
+import { createNotes, linkNotes, collectionItems, createNotesForCollection, notify } from "../create.mjs";
+import { wikilink, pandocCite } from "../lib/copy.mjs";
+import { confirmNotes } from "./preview-dialog.mjs";
 
 export function registerMenus(Gam) {
   const Zotero = Gam.Zotero;
@@ -58,7 +60,60 @@ export function registerMenus(Gam) {
         onCommand: (ev, ctx) => {
           const item = single(ctx);
           const key = item && Gam.itemInfo(item).citekey;
-          if (key) Zotero.Utilities.Internal.copyTextToClipboard(`[[${key}]]`);
+          if (key) Zotero.Utilities.Internal.copyTextToClipboard(wikilink(key));
+        },
+      },
+      {
+        menuType: "menuitem",
+        l10nID: "gam-menu-copy-pandoc",
+        onShowing: (ev, ctx) => {
+          const item = single(ctx);
+          ctx.setVisible(!!item && item.isRegularItem() && !!pandocCite(Gam.itemInfo(item).citekey));
+        },
+        onCommand: (ev, ctx) => {
+          const item = single(ctx);
+          const text = item && pandocCite(Gam.itemInfo(item).citekey);
+          if (text) Zotero.Utilities.Internal.copyTextToClipboard(text);
+        },
+      },
+    ],
+  });
+
+  // The collection that the context menu opened on, or null (library root, saved search, trash).
+  const collectionOf = (ctx) => {
+    try {
+      const row = ctx.collectionTreeRow;
+      return row?.isCollection?.() ? row.ref : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const collectionMenu = Zotero.MenuManager.registerMenu({
+    menuID: "gam-collection",
+    pluginID: Gam.id,
+    target: "main/library/collection",
+    menus: [
+      {
+        menuType: "menuitem",
+        l10nID: "gam-menu-create-collection",
+        onShowing: (ev, ctx) => {
+          const collection = collectionOf(ctx);
+          ctx.setVisible(!!collection && !!Gam.state.index);
+        },
+        onCommand: (ev, ctx) => {
+          const collection = collectionOf(ctx);
+          if (!collection) return;
+          (async () => {
+            const items = await collectionItems(Zotero, collection);
+            await createNotesForCollection(Gam, items, {
+              name: collection.name,
+              confirm: async (preview) => confirmNotes(Gam, preview),
+            });
+          })().catch((e) => {
+            Zotero.logError(e);
+            notify(Zotero, e.message || String(e), false);
+          });
         },
       },
     ],
@@ -81,7 +136,7 @@ export function registerMenus(Gam) {
     ],
   });
 
-  const ids = [itemMenu, toolsMenu].filter(Boolean);
+  const ids = [itemMenu, collectionMenu, toolsMenu].filter(Boolean);
   Gam.cleanups.push(() => ids.forEach((id) => Zotero.MenuManager.unregisterMenu(id)));
   return ids;
 }

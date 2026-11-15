@@ -37,14 +37,16 @@ test("columnText", () => {
   assert.equal(columnText({ kind: "none" }), "");
 });
 
-import { columnSignature, isNoteEvent } from "../content/lib/state.mjs";
+import { columnSignature, isNoteEvent, citedData, citedText } from "../content/lib/state.mjs";
 
-test("columnSignature changes when a status or a linked file changes, not for other files", () => {
+test("columnSignature changes when a status, a linked file or the references change, not for other files", () => {
   const files = [{ path: "sub-sub/literature/a.md", text: "---\nstatus: to-read\n---\n" }];
   const lit = { literatureFolder: "sub-sub/literature" };
   const links = new Map([[7, [{ vault: "v", file: "sub-sub/literature/gone.md" }]]]);
   const s1 = columnSignature(buildIndex(files, lit), links);
-  assert.equal(columnSignature(buildIndex([...files, { path: "other.md", text: "[[a]]" }], lit), links), s1);
+  assert.equal(columnSignature(buildIndex([...files, { path: "other.md", text: "No references." }], lit), links), s1);
+  // A file that cites an item changes a "Cited in" count.
+  assert.notEqual(columnSignature(buildIndex([...files, { path: "other.md", text: "[[a]]" }], lit), links), s1);
   assert.notEqual(columnSignature(buildIndex([{ path: "sub-sub/literature/a.md", text: "---\nstatus: read\n---\n" }], lit), links), s1);
   assert.notEqual(columnSignature(buildIndex([...files, { path: "sub-sub/literature/gone.md", text: "" }], lit), links), s1);
   assert.notEqual(columnSignature(buildIndex(files, lit), new Map()), s1);
@@ -109,4 +111,14 @@ test("missingLinks: the link compares the vault name without case and the path i
   const ix = buildIndex([{ path: "lit/ciência2020.md", text: "" }], { literatureFolder: "lit" });
   const links = [{ vault: "V", file: "lit/ciência2020.md" }];
   assert.equal(missingLinks({ index: ix, links, vaultName: "v", citekey: "ciência2020", itemKey: "X" }), null);
+});
+
+test("citedData sorts as numbers as text, citedText shows the count", () => {
+  const counts = [0, 2, 10, 9, 100];
+  assert.deepEqual(counts.map(citedData).sort().map(citedText), ["0", "2", "9", "10", "100"]);
+  assert.equal(citedData(null), "");
+  assert.equal(citedData(-1), "");
+  assert.equal(citedText(""), "");
+  assert.equal(citedText("00012"), "12");
+  assert.equal(citedText("missing"), "");
 });

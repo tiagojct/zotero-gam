@@ -64,3 +64,8 @@ export function uniqueKey(base, taken) {
   }
   throw new Error(`no free suffix for ${base}`);
 }
+
+/** True when key is safe as a file name inside the literature folder. */
+export function safeFileKey(key) {
+  return /^[^/\\\0]+$/.test(key) && !key.startsWith(".");
+}

@@ -50,12 +50,13 @@ export function columnText(state) {
 }
 
 /**
- * A string that changes only when a value in the Note column can change:
- * the status of a literature note, or whether a linked file exists.
+ * A string that changes only when a value in the Note or "Cited in" column can change:
+ * the status of a literature note, whether a linked file exists, or the references in the vault.
  */
 export function columnSignature(index, links) {
   if (!index) return "";
-  const parts = index.notes().map((n) => `n\t${n.path}\t${n.citekey}\t${n.itemKey}\t${n.status}`).sort();
+  const parts = [`r\t${index.refsSignature()}`];
+  parts.push(...index.notes().map((n) => `n\t${n.path}\t${n.citekey}\t${n.itemKey}\t${n.status}`).sort());
   for (const [id, list] of links) {
     for (const l of list) parts.push(`l\t${id}\t${l.vault.toLowerCase()}\t${l.file}\t${index.hasPath(l.file)}`);
   }
@@ -70,4 +71,20 @@ export function isNoteEvent(event, ids, getItem, knownNoteIDs) {
     const item = getItem(id);
     return !!item && item.isNote();
   });
+}
+
+const CITED_WIDTH = 5;
+
+/**
+ * The data of the "Cited in" column: the count with leading zeros, so that Zotero sorts the
+ * column as numbers whatever its collation setting. "" when there is no count.
+ */
+export function citedData(count) {
+  if (!Number.isInteger(count) || count < 0) return "";
+  return String(count).padStart(CITED_WIDTH, "0");
+}
+
+/** The text of a "Cited in" cell: the count without the leading zeros. */
+export function citedText(data) {
+  return /^\d+$/.test(String(data ?? "")) ? String(Number(data)) : "";
 }

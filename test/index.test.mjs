@@ -92,3 +92,19 @@ test("cache: a file with no text and no cache entry adds no made-up data", () =>
   assert.equal(ix.noteFor({ citekey: "x2020" }), null);
   assert.ok(ix.hasPath("sub-sub/literature/x2020.md"));
 });
+
+test("citedCount is the length of citedIn", () => {
+  assert.equal(ix.citedCount({ citekey: "cai2026", itemKey: "ABCDEFGH", doi: "10.5555/abc" }), 2);
+  assert.equal(ix.citedCount({ citekey: "nofm" }), 0);
+  assert.equal(ix.citedCount(), 0);
+});
+
+test("refsSignature changes with the references and not with the text around them", () => {
+  const lit = { literatureFolder: "sub-sub/literature" };
+  const sig = (text) => buildIndex([{ path: "a.md", text }], lit).refsSignature();
+  assert.equal(sig("See [[x2020]]."), sig("Other words, same reference [[x2020]]"));
+  assert.notEqual(sig("See [[x2020]]."), sig("See [[y2020]]."));
+  assert.notEqual(sig("See [[x2020]]."), sig(""));
+  assert.equal(buildIndex([{ path: "a.md", text: "[[x]] [[y]]" }, { path: "b.md", text: "@z" }], lit).refsSignature(),
+    buildIndex([{ path: "b.md", text: "@z" }, { path: "a.md", text: "[[y]] [[x]]" }], lit).refsSignature());
+});

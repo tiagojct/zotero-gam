@@ -3,6 +3,8 @@
 
 const WIKILINK = /\[\[([^\]|#]+)(?:[|#][^\]]*)?\]\]/g;
 const PANDOC = /(?<![\p{L}\p{N}_.@])@([\p{L}\p{N}][\p{L}\p{N}_:.-]*)/gu;
+// The form that Pandoc needs for a key with other characters: @{key}.
+const PANDOC_BRACED = /(?<![\p{L}\p{N}_.@])@\{([^{}\s]+)\}/gu;
 const ZOTERO = /zotero:\/\/select\/(?:library|users\/\d+|groups\/\d+)\/items\/([A-Z0-9]{8})/g;
 const DOI = /10\.\d{4,9}\/[^\s"<>\]`]+/gi;
 const NO_SPACE = /^\S+$/;
@@ -32,6 +34,7 @@ export function extractRefs(text) {
   for (const m of src.matchAll(PANDOC)) {
     citekeys.add(m[1].replace(/[:.-]+$/, ""));
   }
+  for (const m of src.matchAll(PANDOC_BRACED)) citekeys.add(m[1]);
   for (const m of src.matchAll(ZOTERO)) itemKeys.add(m[1]);
   for (const m of src.matchAll(DOI)) {
     dois.add(trimDoi(m[0]).toLowerCase());
