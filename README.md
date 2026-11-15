@@ -6,7 +6,7 @@ A gam is a meeting of two whaling ships at sea to exchange news.
 
 ## What it does
 
-- Column "Note": the status of the item's literature note in the vault (for example to-read), "missing" when the linked file does not exist, empty when there is no note.
+- Column "Note": the status of the item's literature note in the vault (for example to-read), with a coloured dot for to-read, reading and read, "missing" when the linked file does not exist, empty when there is no note.
 - Column "Cited in": the number of vault notes that cite the item, by citekey (`[[key]]`, `@key`, `[@key]`, `[@{key}]`), Zotero link or DOI. The first click on the header shows the most cited items first.
 - Item pane section "Vault": the title, status, tags and summary of the note, and the vault notes that cite the item.
 - Create note: writes `<literature folder>/<citekey>.md` with the frontmatter that Sub-Sub uses, and adds a Zotero child note with an obsidian:// link.

@@ -2,6 +2,18 @@
 
 import { columnText, citedData, citedText } from "../lib/state.mjs";
 import { noteState } from "./common.mjs";
+import { statusTone, TONE_COLORS } from "../lib/status.mjs";
+
+/** The dot before a status: a coloured circle that follows the light or dark theme. */
+function statusDot(doc, status) {
+  const [light, dark] = TONE_COLORS[statusTone(status)];
+  const dot = doc.createElement("span");
+  Object.assign(dot.style, {
+    display: "inline-block", flex: "none", width: "7px", height: "7px", borderRadius: "50%",
+    background: `light-dark(${light}, ${dark})`,
+  });
+  return dot;
+}
 
 function registerNote(Gam) {
   const Zotero = Gam.Zotero;
@@ -22,10 +34,15 @@ function registerNote(Gam) {
     renderCell: (index, data, column, isFirstColumn, doc) => {
       const span = doc.createElement("span");
       span.className = `cell ${column.className}`;
-      span.textContent = data;
       if (data === "missing") {
+        span.textContent = data;
         span.style.color = "var(--accent-red, #d00)";
         span.title = "The linked vault note does not exist";
+      } else if (data) {
+        Object.assign(span.style, { display: "inline-flex", alignItems: "center", gap: "6px" });
+        const label = doc.createElement("span");
+        label.textContent = data;
+        span.append(statusDot(doc, data), label);
       }
       return span;
     },
@@ -60,6 +77,7 @@ function registerCited(Gam) {
       const span = doc.createElement("span");
       span.className = `cell ${column.className}`;
       span.textContent = citedText(data);
+      span.style.fontVariantNumeric = "tabular-nums";
       if (span.textContent === "0") span.style.opacity = "0.5";
       span.title = "Vault notes that cite this item";
       return span;

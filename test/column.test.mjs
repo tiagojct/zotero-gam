@@ -66,3 +66,19 @@ test("Cited in: the first click gives the most cited items first, and the column
   assert.equal(columns.gamCited.sortReverse, true);
   assert.deepEqual(columns.gamCited.zoteroPersist, ["width", "hidden", "sortDirection"]);
 });
+
+test("Note: the cell has a coloured dot and the status; missing is red text; empty is empty", () => {
+  const { columns } = setup();
+  const make = () => ({ style: {}, className: "", textContent: "", children: [], append(...c) { this.children.push(...c); } });
+  const rich = { createElement: make };
+  const cell = (d) => columns.gamNote.renderCell(0, d, { className: "c" }, false, rich);
+  const read = cell("read");
+  assert.equal(read.children.length, 2);
+  assert.match(read.children[0].style.background, /^light-dark\(#[0-9a-f]{6}, #[0-9a-f]{6}\)$/);
+  assert.equal(read.children[1].textContent, "read");
+  assert.notEqual(read.children[0].style.background, cell("to-read").children[0].style.background);
+  const missing = cell("missing");
+  assert.equal(missing.textContent, "missing");
+  assert.equal(missing.children.length, 0);
+  assert.equal(cell("").children.length, 0);
+});

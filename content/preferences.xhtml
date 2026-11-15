@@ -4,16 +4,27 @@
 <vbox id="gam-prefs">
   <groupbox>
     <label><html:h2 data-l10n-id="gam-pref-title"/></label>
+    <description data-l10n-id="gam-pref-intro"/>
+  </groupbox>
+  <groupbox>
+    <label><html:h2 data-l10n-id="gam-pref-group-vault"/></label>
     <label data-l10n-id="gam-pref-vault"/>
     <html:input type="text" preference="extensions.gam.vault"/>
+    <description data-l10n-id="gam-pref-vault-help"/>
     <label data-l10n-id="gam-pref-vault-name"/>
     <html:input type="text" preference="extensions.gam.vaultName"/>
     <label data-l10n-id="gam-pref-literature"/>
     <html:input type="text" preference="extensions.gam.literatureFolder"/>
+    <description data-l10n-id="gam-pref-literature-help"/>
     <label data-l10n-id="gam-pref-exclude"/>
     <html:input type="text" preference="extensions.gam.exclude"/>
+    <description data-l10n-id="gam-pref-exclude-help"/>
+  </groupbox>
+  <groupbox>
+    <label><html:h2 data-l10n-id="gam-pref-group-notes"/></label>
     <label data-l10n-id="gam-pref-marker"/>
     <html:input type="text" preference="extensions.gam.marker"/>
+    <description data-l10n-id="gam-pref-marker-help"/>
     <checkbox preference="extensions.gam.openAfterCreate" data-l10n-id="gam-pref-open-after-create"/>
   </groupbox>
 </vbox>

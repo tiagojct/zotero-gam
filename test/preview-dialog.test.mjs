@@ -8,6 +8,7 @@ import { confirmNotes } from "../content/ui/preview-dialog.mjs";
 class El {
   constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.listeners = {}; this.textContent = ""; this.checked = false; }
   setAttribute(k, v) { this.attrs[k] = v; }
+  get className() { return this.attrs.class || ""; }
   append(...c) { this.children.push(...c); }
   addEventListener(t, fn) { (this.listeners[t] ||= []).push(fn); }
   fire(t) { for (const fn of this.listeners[t] || []) fn(); }
@@ -34,7 +35,7 @@ function openDialog(io) {
   };
   vm.runInNewContext(fs.readFileSync(new URL("../content/preview.js", import.meta.url), "utf8"), { window, document });
   winListeners.load();
-  const list = root.children[0].children.find((c) => c.attrs.style?.includes("overflow-y"));
+  const list = root.children[0].children.find((c) => c.className === "gam-list");
   const boxes = list.all("input");
   const allBox = root.all("input")[0];
   return { accept, root, list, boxes, allBox, document, accepted: () => docListeners.dialogaccept() };
@@ -51,7 +52,7 @@ test("the dialog lists each note with its path and title, and all are kept at fi
   const d = openDialog(makeIo());
   assert.equal(d.document.documentElement.attrs.title, "Create notes: C");
   const text = d.root.text();
-  assert.match(text, /lit\/a2020\.md  \(new citekey\)/);
+  assert.match(text, /lit\/\s+a2020\.md\s+new citekey/);
   assert.match(text, /Second paper/);
   assert.match(text, /Left out: 2 already have a note\./);
   assert.equal(d.boxes.length, 3);

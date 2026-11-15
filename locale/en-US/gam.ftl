@@ -1,8 +1,15 @@
-gam-pref-title = gam: Zotero and the Obsidian vault
+gam-pref-title = gam
+gam-pref-intro = Shows the Obsidian notes of your items, and makes literature notes. gam never changes a file that exists in the vault.
+gam-pref-group-vault = Vault
+gam-pref-group-notes = Notes
+gam-pref-vault-help = The folder that holds the .obsidian folder.
+gam-pref-literature-help = A folder in the vault. New notes go here.
+gam-pref-exclude-help = Notes in these folders do not count as citations. Separate folders with commas.
+gam-pref-marker-help = gam adds this tag to the Zotero note with the Obsidian link.
 gam-pref-vault = Vault folder
 gam-pref-vault-name = Obsidian vault name (empty: the folder name)
 gam-pref-literature = Literature folder (in the vault)
-gam-pref-exclude = Folders that "Cited in" leaves out (comma-separated)
+gam-pref-exclude = Folders that "Cited in" leaves out
 gam-pref-marker = Marker tag for the child note (empty: none)
 gam-pref-open-after-create =
     .label = Open the new note in Obsidian
