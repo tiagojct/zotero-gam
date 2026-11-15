@@ -16,6 +16,13 @@ export function noteState(Gam, item) {
   });
 }
 
+/** True when gam can change item: not in the trash, and not in a read-only library. */
+export function canChange(item) {
+  if (item?.isInTrash?.()) return false;
+  if (item?.library && !item.library.editable) return false;
+  return !item?.isEditable || item.isEditable();
+}
+
 /** What a Zotero item lacks for its literature note (see lib/state.mjs), or null. */
 export function missingLinks(Gam, item) {
   if (!item?.isRegularItem?.()) return null;

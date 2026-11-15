@@ -2,8 +2,11 @@
 
 import { planNote, localDate, CHILD_NOTE_TEXT } from "./lib/plan-note.mjs";
 import { joinPath } from "./lib/paths.mjs";
-import { buildUri, childNoteHtml } from "./lib/obsidian.mjs";
-import { missingLinks } from "./lib/state.mjs";
+import { buildUri, childNoteHtml, parseUris } from "./lib/obsidian.mjs";
+import { missingLinks, linksTo } from "./lib/state.mjs";
+
+// Items that linkNote works on now: a second call for the same item does nothing.
+const linking = new Set();
 import { createFile } from "./vault.mjs";
 import { openInObsidian } from "./ui/common.mjs";
 
@@ -58,6 +61,21 @@ function checkItem(Gam, item) {
   }
 }
 
+/**
+ * The obsidian:// links of item: those of the last refresh and those in its child notes now
+ * (a note added less than a second ago is not in Gam.state.links yet).
+ */
+function currentLinks(Gam, item) {
+  const links = [...(Gam.state.links.get(item.id) || [])];
+  try {
+    const ids = item.getNotes?.() || [];
+    for (const note of ids.length ? Gam.Zotero.Items.get(ids) : []) links.push(...parseUris(note?.getNote?.() || ""));
+  } catch {
+    // The child items are not loaded: the links of the last refresh are all there is.
+  }
+  return links;
+}
+
 /** Add the child note with the obsidian:// link (and the marker tag) to item. */
 async function addChildNote(Gam, item, html) {
   const note = new Gam.Zotero.Item("note");
@@ -99,10 +117,9 @@ export async function createNote(Gam, item, { open = Gam.prefs.openAfterCreate()
   await createFile(abs, plan.text);
   try {
     if (plan.newKey) await saveCitekey(Zotero, item, plan.citekey);
-    const vault = Gam.prefs.vaultName().toLowerCase();
-    const linked = (Gam.state.links.get(item.id) || [])
-      .some((l) => l.vault.toLowerCase() === vault && l.file.normalize("NFC") === plan.relPath.normalize("NFC"));
-    if (!linked) await addChildNote(Gam, item, plan.childHtml);
+    if (!linksTo(currentLinks(Gam, item), Gam.prefs.vaultName(), plan.relPath)) {
+      await addChildNote(Gam, item, plan.childHtml);
+    }
   } catch (e) {
     await Gam.refresh({ force: true });
     throw new Error(`The note file was written to ${plan.relPath}, but the change in Zotero failed: ${e.message || e}`);
@@ -148,13 +165,23 @@ export async function createNotes(Gam, items) {
  * obsidian:// link, and set the citekey of the note when the item has none and no other item
  * has it. Writes nothing in the vault. Returns {childNote, citekey, warning}: what was added.
  */
-export async function linkNote(Gam, item, { quiet = false, refresh = true } = {}) {
-  const Zotero = Gam.Zotero;
+export async function linkNote(Gam, item, opts = {}) {
   checkItem(Gam, item);
+  if (linking.has(item.id)) return { childNote: false, citekey: null, warning: null };
+  linking.add(item.id);
+  try {
+    return await linkNoteOnce(Gam, item, opts);
+  } finally {
+    linking.delete(item.id);
+  }
+}
+
+async function linkNoteOnce(Gam, item, { quiet = false, refresh = true }) {
+  const Zotero = Gam.Zotero;
   const info = Gam.itemInfo(item);
   const missing = missingLinks({
     index: Gam.state.index,
-    links: Gam.state.links.get(item.id) || [],
+    links: currentLinks(Gam, item),
     vaultName: Gam.prefs.vaultName(),
     citekey: info.citekey,
     itemKey: info.itemKey,
@@ -178,7 +205,8 @@ export async function linkNote(Gam, item, { quiet = false, refresh = true } = {}
     }
   } catch (e) {
     await Gam.refresh({ force: true });
-    throw new Error(`The link to ${path} was not added: ${e.message || e}`);
+    const keySet = citekey && Gam.itemInfo(item).citekey === citekey ? ` The citekey "${citekey}" was set.` : "";
+    throw new Error(`The link to ${path} was not added: ${e.message || e}.${keySet}`);
   }
   if (refresh) await Gam.refresh({ force: true });
   if (!quiet) notify(Zotero, [`Linked to ${path}`, warning].filter(Boolean).join("\n"), !warning);

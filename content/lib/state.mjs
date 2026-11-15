@@ -15,22 +15,32 @@ export function noteState({ index, links, vaultName, citekey, itemKey }) {
   return { kind: "none" };
 }
 
-const nfc = (s) => String(s ?? "").normalize("NFC");
+const key = (s) => String(s ?? "").normalize("NFC").toLowerCase();
 
 /**
- * What the item lacks for the literature note that the index has for it:
- * childNote: no obsidian:// link of this vault goes to the note;
- * citekey: the citekey of the note, when the item has no citekey (else null).
- * Returns {note, childNote, citekey}, or null when there is no note or nothing is missing.
+ * True when one of links (obsidian:// links, {vault, file}) opens the note at notePath in this vault:
+ * the same path in any case or Unicode form, or a link with the file name only (Obsidian finds it).
+ */
+export function linksTo(links, vaultName, notePath) {
+  const vault = key(vaultName);
+  const path = key(notePath);
+  const name = path.split("/").pop();
+  return (links || []).some((l) => key(l.vault) === vault && (key(l.file) === path || key(l.file) === name));
+}
+
+/**
+ * What the item lacks for the literature note that the index has for it. Returns null when there
+ * is no note, when the note names another Zotero item, or when a link to the note exists.
+ * Else {note, childNote: true, citekey}: citekey is the citekey of the note when the item has
+ * none (gam sets it with the link), else null. A missing citekey alone does not count: gam may
+ * not be able to set it (another item has it), and the action would then never go away.
  */
 export function missingLinks({ index, links, vaultName, citekey, itemKey }) {
   const note = index?.noteFor({ citekey, itemKey });
   if (!note) return null;
-  const vault = String(vaultName).toLowerCase();
-  const linked = (links || []).some((l) => l.vault.toLowerCase() === vault && nfc(l.file) === nfc(note.path));
-  const key = citekey ? null : note.citekey;
-  if (linked && !key) return null;
-  return { note, childNote: !linked, citekey: key };
+  if (note.itemKey && itemKey && note.itemKey !== itemKey) return null;
+  if (linksTo(links, vaultName, note.path)) return null;
+  return { note, childNote: true, citekey: citekey ? null : note.citekey };
 }
 
 export function columnText(state) {

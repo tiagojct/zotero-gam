@@ -15,13 +15,21 @@ function setup({ citationKey = "", editable = true, noteSaveFails = false, links
   class FakeNote {
     constructor() { this.tags = []; }
     setNote(h) { this.html = h; }
+    getNote() { return this.html; }
     addTag(t) { this.tags.push(t); }
-    async saveTx() { if (noteSaveFails) throw new Error("note save failed"); saved.push(this); }
+    async saveTx() {
+      if (noteSaveFails) throw new Error("note save failed");
+      // A save takes a moment, as in Zotero.
+      await new Promise((r) => setTimeout(r, 5));
+      this.id = 100 + saved.length;
+      saved.push(this);
+    }
   }
   const Zotero = {
     DB: { columnQueryAsync: async () => [] },
     ItemFields: { getID: () => 9, isValidForType: () => true },
     Item: FakeNote,
+    Items: { get: (ids) => ids.map((id) => saved.find((n) => n.id === id)) },
     ProgressWindow: class { changeHeadline() {} addDescription() {} show() {} startCloseTimer() {} },
     launchURL() {},
   };
@@ -30,6 +38,7 @@ function setup({ citationKey = "", editable = true, noteSaveFails = false, links
     library: { editable }, isEditable: () => editable, isRegularItem: () => true,
     toJSON: () => ({ title: "T", itemType: "journalArticle", date: "2026", creators: [{ creatorType: "author", lastName: "Gamtest" }] }),
     setField(f, v) { this.fields[f] = v; }, getField(f) { return this.fields[f] || ""; }, async saveTx() {},
+    getNotes() { return saved.filter((n) => n.parentID === id).map((n) => n.id); },
   });
   const item = makeItem(1, "ABCDEFGH", { citationKey });
   const Gam = {
@@ -199,12 +208,33 @@ test("linkNote adds the child note in the Create note format and writes nothing 
   assert.equal(s.refreshes(), 1);
 });
 
-test("linkNote sets the citekey of the note when the item has none", async () => {
-  const s = withNote(setup(), [{ vault: "v", file: "lit/cai2026.md" }]);
+test("linkNote also sets the citekey of the note when the item has none", async () => {
+  const s = withNote(setup());
   const r = await linkNote(s.Gam, s.item);
-  assert.deepEqual(r, { childNote: false, citekey: "cai2026", warning: null });
+  assert.deepEqual(r, { childNote: true, citekey: "cai2026", warning: null });
   assert.equal(s.item.fields.citationKey, "cai2026");
-  assert.equal(s.saved.length, 0);
+  assert.equal(s.saved.length, 1);
+});
+
+test("linkNote: two calls at the same time add one child note", async () => {
+  const s = withNote(setup({ citationKey: "cai2026" }));
+  await Promise.all([linkNote(s.Gam, s.item), linkNote(s.Gam, s.item)]);
+  assert.equal(s.saved.length, 1);
+});
+
+test("linkNote: a link note that the index does not know yet is not added again", async () => {
+  const s = withNote(setup({ citationKey: "cai2026" }));
+  await linkNote(s.Gam, s.item);
+  // Gam.state.links is not refreshed (the fake refresh does nothing).
+  const r = await linkNote(s.Gam, s.item);
+  assert.equal(r.childNote, false);
+  assert.equal(s.saved.length, 1);
+});
+
+test("linkNote: when the child note fails after the citekey was set, the message says so", async () => {
+  const s = withNote(setup({ noteSaveFails: true }));
+  await assert.rejects(linkNote(s.Gam, s.item), (e) =>
+    /The link to lit\/cai2026\.md was not added/.test(e.message) && /citekey "cai2026" was set/.test(e.message));
 });
 
 test("linkNote does not set a citekey that another item has, and says so", async () => {

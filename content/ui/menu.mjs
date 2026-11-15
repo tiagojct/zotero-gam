@@ -1,6 +1,6 @@
 // Context menu entries on items and the Tools menu entry.
 
-import { noteState, missingLinks, openInObsidian } from "./common.mjs";
+import { noteState, missingLinks, canChange, openInObsidian } from "./common.mjs";
 import { createNotes, linkNotes } from "../create.mjs";
 
 export function registerMenus(Gam) {
@@ -29,11 +29,11 @@ export function registerMenus(Gam) {
         menuType: "menuitem",
         l10nID: "gam-menu-create",
         onShowing: (ev, ctx) => {
-          const items = (ctx.items || []).filter((i) => i.isRegularItem());
+          const items = (ctx.items || []).filter((i) => i.isRegularItem() && canChange(i));
           ctx.setVisible(!!Gam.state.index && items.some((i) => noteState(Gam, i).kind !== "note"));
         },
         onCommand: (ev, ctx) => {
-          const items = (ctx.items || []).filter((i) => i.isRegularItem() && noteState(Gam, i).kind !== "note");
+          const items = (ctx.items || []).filter((i) => i.isRegularItem() && canChange(i) && noteState(Gam, i).kind !== "note");
           createNotes(Gam, items).catch((e) => Zotero.logError(e));
         },
       },
@@ -41,10 +41,10 @@ export function registerMenus(Gam) {
         menuType: "menuitem",
         l10nID: "gam-menu-link",
         onShowing: (ev, ctx) => {
-          ctx.setVisible((ctx.items || []).some((i) => missingLinks(Gam, i)));
+          ctx.setVisible((ctx.items || []).some((i) => canChange(i) && missingLinks(Gam, i)));
         },
         onCommand: (ev, ctx) => {
-          const items = (ctx.items || []).filter((i) => missingLinks(Gam, i));
+          const items = (ctx.items || []).filter((i) => canChange(i) && missingLinks(Gam, i));
           linkNotes(Gam, items).catch((e) => Zotero.logError(e));
         },
       },

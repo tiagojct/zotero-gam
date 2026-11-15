@@ -1,6 +1,6 @@
 // The "Vault" section of the item pane.
 
-import { noteState, missingLinks, openInObsidian } from "./common.mjs";
+import { noteState, missingLinks, canChange, openInObsidian } from "./common.mjs";
 
 const PANE_ID = "gam-vault";
 
@@ -49,6 +49,8 @@ export function render(Gam, { doc, body, item, setSectionSummary }) {
       if (body.isConnected && shownItem.get(body) === item) render(Gam, { doc, body, item, setSectionSummary });
     });
   };
+  // No write buttons for an item that gam cannot change (trash, read-only library).
+  const writable = canChange(item);
   const create = run(Gam.actions.createNote);
 
   if (state.kind === "note") {
@@ -58,17 +60,17 @@ export function render(Gam, { doc, body, item, setSectionSummary }) {
     box.append(el(doc, "div", [n.status || "no status", tags.join(", ")].filter(Boolean).join(" · "), "opacity: 0.8;"));
     if (n.summary) box.append(el(doc, "div", n.summary, "margin-top: 6px; white-space: pre-wrap;"));
     box.append(button(doc, "Open in Obsidian", () => openInObsidian(Gam, n.path)));
-    if (Gam.actions.linkNote && missingLinks(Gam, item)) {
+    if (writable && Gam.actions.linkNote && missingLinks(Gam, item)) {
       box.append(button(doc, "Add Zotero link", run(Gam.actions.linkNote)));
     }
     setSectionSummary?.(n.status || "");
   } else if (state.kind === "missing") {
     box.append(el(doc, "div", `The linked note does not exist: ${state.missingPath}`));
-    if (Gam.actions.createNote) box.append(button(doc, "Create note", create));
+    if (writable && Gam.actions.createNote) box.append(button(doc, "Create note", create));
     setSectionSummary?.("missing");
   } else {
     box.append(el(doc, "div", "No literature note."));
-    if (Gam.actions.createNote) box.append(button(doc, "Create note", create));
+    if (writable && Gam.actions.createNote) box.append(button(doc, "Create note", create));
     setSectionSummary?.("");
   }
 

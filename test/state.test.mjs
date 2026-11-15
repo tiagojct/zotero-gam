@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { noteState, columnText, missingLinks } from "../content/lib/state.mjs";
+import { noteState, columnText, missingLinks, linksTo } from "../content/lib/state.mjs";
 import { buildIndex } from "../content/lib/index.mjs";
 
 const index = buildIndex([
@@ -82,11 +82,27 @@ test("missingLinks: the child note when no link of this vault goes to the note",
   assert.equal(m.citekey, null);
 });
 
-test("missingLinks: the citekey of the note when the item has none", () => {
-  const links = [{ vault: "v", file: "lit/cai2026.md" }];
-  const m = missingLinks({ index: keyed, links, vaultName: "v", citekey: null, itemKey: "ABCDEFGH" });
-  assert.equal(m.childNote, false);
+test("missingLinks: with the child note, also the citekey of the note when the item has none", () => {
+  const m = missingLinks({ index: keyed, links: [], vaultName: "v", citekey: null, itemKey: "ABCDEFGH" });
+  assert.equal(m.childNote, true);
   assert.equal(m.citekey, "cai2026");
+});
+
+test("missingLinks: null when only the citekey is missing (gam may not be able to set it)", () => {
+  const links = [{ vault: "v", file: "lit/cai2026.md" }];
+  assert.equal(missingLinks({ index: keyed, links, vaultName: "v", citekey: null, itemKey: "ABCDEFGH" }), null);
+});
+
+test("missingLinks: null when the note names another Zotero item", () => {
+  assert.equal(missingLinks({ index: keyed, links: [], vaultName: "v", citekey: "cai2026", itemKey: "OTHERKEY" }), null);
+});
+
+test("linksTo: the same file in another case, or a link with the file name only", () => {
+  const note = "lit/Cai2026.md";
+  assert.ok(linksTo([{ vault: "V", file: "Lit/cai2026.md" }], "v", note));
+  assert.ok(linksTo([{ vault: "v", file: "cai2026.md" }], "v", note));
+  assert.ok(!linksTo([{ vault: "v", file: "other/cai2026.md" }], "v", note));
+  assert.ok(!linksTo([{ vault: "w", file: "lit/Cai2026.md" }], "v", note));
 });
 
 test("missingLinks: the link compares the vault name without case and the path in NFC", () => {

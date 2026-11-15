@@ -101,3 +101,13 @@ test("a note with its Zotero link and citekey has no Add Zotero link button", ()
   assert.equal(body.find((n) => n.tag === "button" && n.textContent === "Add Zotero link"), null);
   assert.ok(body.find((n) => n.tag === "button" && n.textContent === "Open in Obsidian"));
 });
+
+test("an item in the trash gets no Create note or Add Zotero link button", () => {
+  const s = setup();
+  s.Gam.actions.linkNote = async () => {};
+  const body = new Node("div");
+  const a = s.item(1, "A");
+  a.isInTrash = () => true;
+  render(s.Gam, { doc, body, item: a });
+  assert.equal(body.find((n) => n.tag === "button"), null);
+});
