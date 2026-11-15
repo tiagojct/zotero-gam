@@ -1,12 +1,12 @@
 {
   "manifest_version": 2,
   "name": "gam",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Shows the Obsidian vault notes of Zotero items and creates literature notes.",
   "author": "Tiago Jacinto",
   "icons": {
-    "48": "content/icons/gam.svg",
-    "96": "content/icons/gam.svg"
+    "48": "content/icons/gam-color.svg",
+    "96": "content/icons/gam-color.svg"
   },
   "applications": {
     "zotero": {
