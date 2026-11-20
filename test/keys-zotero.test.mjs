@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { buildIndex } from "../content/lib/index.mjs";
 import { currentKey } from "../content/lib/citekey.mjs";
 
-const { autoKeys, assignKeys, checkKeyChanges, readAllKeys, takenKeys, readyForKey } = await import("../content/keys.mjs");
+const { autoKeys, assignKeys, checkKeyChanges, readAllKeys, takenKeys, readyForKey, shortTitle } = await import("../content/keys.mjs");
 
 function setup({ autoKey = true, libraryKeys = [], vaultFiles = [], keys = new Map() } = {}) {
   const notices = [];
@@ -17,9 +17,11 @@ function setup({ autoKey = true, libraryKeys = [], vaultFiles = [], keys = new M
     },
     ItemFields: { getID: () => 9, isValidForType: () => true },
     Items: { get: (ids) => ids.map((id) => items.get(id)) },
+    // One notice for each window; its lines are joined with "\n".
     ProgressWindow: class {
+      constructor() { this.n = notices.push("") - 1; }
       changeHeadline() {}
-      addDescription(t) { notices.push(t); }
+      addDescription(t) { notices[this.n] += (notices[this.n] ? "\n" : "") + t; }
       show() {}
       startCloseTimer() {}
     },
@@ -163,7 +165,12 @@ test("checkKeyChanges warns when a key that the vault uses changes, and keeps th
   const used = checkKeyChanges(s.Gam, [1, 2, 3]);
   assert.deepEqual(used.map((u) => [u.id, u.from, u.to, u.note?.path, u.cites]), [[1, "smith2020", "smith2020x", "lit/smith2020.md", 1]]);
   assert.equal(s.notices.length, 1);
-  assert.match(s.notices[0], /"Cited paper" changed from smith2020 to smith2020x\. The vault uses smith2020: the literature note lit\/smith2020\.md and 1 note that cites it\./);
+  assert.equal(s.notices[0], [
+    "Citation key changed: smith2020 to smith2020x",
+    '"Cited paper"',
+    "The vault uses smith2020: the literature note and 1 note that cites it.",
+    "Change the key back, or update the vault.",
+  ].join("\n"));
   assert.deepEqual([...s.Gam.state.keys], [[1, "smith2020x"], [2, "lee2021"], [3, "new2020"]]);
   assert.deepEqual(checkKeyChanges(s.Gam, [1, 2, 3]), []);
 });
@@ -171,7 +178,7 @@ test("checkKeyChanges warns when a key that the vault uses changes, and keeps th
 test("checkKeyChanges: a removed key that the vault cites is reported; without an index every change is", async () => {
   const s = setup({ vaultFiles: [{ path: "x.md", text: "[[smith2020]]" }], keys: new Map([[1, "smith2020"]]) });
   s.makeItem(1);
-  assert.match(checkKeyChanges(s.Gam, [1]).length && s.notices[0], /smith2020 was removed/);
+  assert.match(checkKeyChanges(s.Gam, [1]).length && s.notices[0], /Citation key removed: smith2020/);
   const t = setup({ keys: new Map([[1, "a2020"]]) });
   t.Gam.state.index = null;
   t.makeItem(1, { citationKey: "b2020" });
@@ -233,4 +240,22 @@ test("takenKeys has the file name of a note whose citekey is another one", async
   const s = setup({ vaultFiles: [{ path: "lit/smith2020.md", text: "---\ncitekey: smith2020b\n---\n" }] });
   const taken = await takenKeys(s.Gam);
   assert.ok(taken.has("smith2020") && taken.has("smith2020b"));
+});
+
+test("shortTitle cuts a long title for a notice", () => {
+  assert.equal(shortTitle("a".repeat(60)), "a".repeat(60));
+  assert.equal(shortTitle("a".repeat(70)), `${"a".repeat(59)}…`);
+  assert.equal(shortTitle(""), "(no title)");
+});
+
+test("a notice has one line in the window for each line of the message", async () => {
+  const { notify } = await import("../content/notify.mjs");
+  const calls = [];
+  notify({ ProgressWindow: class {
+    changeHeadline() {}
+    addDescription(t) { calls.push(t); }
+    show() {}
+    startCloseTimer() {}
+  } }, "one\ntwo");
+  assert.deepEqual(calls, ["one", "two"]);
 });

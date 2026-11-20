@@ -100,9 +100,15 @@ function vaultUse(index, key) {
 
 function useText({ note, cites }) {
   const parts = [];
-  if (note) parts.push(`the literature note ${note.path}`);
+  if (note) parts.push("the literature note");
   if (cites) parts.push(`${cites} note${cites === 1 ? "" : "s"} that cite${cites === 1 ? "s" : ""} it`);
   return parts.join(" and ");
+}
+
+/** A title for a notice: at most max characters. */
+export function shortTitle(title, max = 60) {
+  const t = String(title || "(no title)");
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
 }
 
 /**
@@ -128,13 +134,13 @@ export function checkKeyChanges(Gam, ids) {
     .map((c) => ({ ...c, title: titleOf(byId.get(c.id)), ...(index ? vaultUse(index, c.from) : { note: null, cites: 0 }) }))
     .filter((c) => !index || c.note || c.cites);
   if (!used.length) return [];
-  const lines = used.slice(0, 5).map((c) => {
-    const what = c.to ? `changed from ${c.from} to ${c.to}` : `${c.from} was removed`;
-    const use = index ? ` The vault uses ${c.from}: ${useText(c)}.` : " gam cannot check the vault now.";
-    return `The citation key of "${c.title}" ${what}.${use}`;
-  });
-  if (used.length > 5) lines.push(`${used.length - 5} more keys changed.`);
-  lines.push("Change the key back in Zotero, or update the vault.");
+  const lines = used.slice(0, 3).flatMap((c) => [
+    c.to ? `Citation key changed: ${c.from} to ${c.to}` : `Citation key removed: ${c.from}`,
+    `"${shortTitle(c.title)}"`,
+    index ? `The vault uses ${c.from}: ${useText(c)}.` : "gam cannot check the vault now.",
+  ]);
+  if (used.length > 3) lines.push(`${used.length - 3} more keys changed.`);
+  lines.push("Change the key back, or update the vault.");
   notify(Gam.Zotero, lines.join("\n"), false);
   return used;
 }
