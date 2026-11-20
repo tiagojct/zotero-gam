@@ -1,6 +1,11 @@
 // File access to the vault. Uses IOUtils and PathUtils (available in system modules).
 
 import { joinPath, matchName } from "./lib/paths.mjs";
+import { makeLimit } from "./lib/limit.mjs";
+
+// The number of file operations of one scan that run at the same time. Without a limit, a large
+// vault opens thousands of files at once.
+const SCAN_LIMIT = 24;
 
 /** null when root is an Obsidian vault folder that can be read, else the message for the user. */
 export async function checkVault(root) {
@@ -42,15 +47,17 @@ async function isSymlink(path) {
  * Hidden folders and symbolic links to folders are skipped. Files in the folders of exclude
  * (paths relative to root) are listed as {path, text: "", excluded: true}, without reading them.
  */
-export async function listMarkdown(root, exclude = [], { isCurrent } = {}) {
+export async function listMarkdown(root, exclude = [], { isCurrent, maxOpen = SCAN_LIMIT } = {}) {
   const skip = exclude.map((e) => e.trim().replace(/^\/+|\/+$/g, "")).filter(Boolean);
   const out = [];
   const prefix = root.endsWith("/") ? root : root + "/";
+  // Each file operation takes a place; walk() never holds one while it waits for a subfolder.
+  const limit = makeLimit(maxOpen);
 
   async function walk(dir, excluded) {
     let children;
     try {
-      children = await IOUtils.getChildren(dir);
+      children = await limit(() => IOUtils.getChildren(dir));
     } catch {
       return;
     }
@@ -60,12 +67,12 @@ export async function listMarkdown(root, exclude = [], { isCurrent } = {}) {
       const rel = abs.startsWith(prefix) ? abs.slice(prefix.length) : name;
       let info;
       try {
-        info = await IOUtils.stat(abs);
+        info = await limit(() => IOUtils.stat(abs));
       } catch {
         return;
       }
       if (info.type === "directory") {
-        if (await isSymlink(abs)) return;
+        if (await limit(() => isSymlink(abs))) return;
         await walk(abs, excluded || skip.some((s) => rel === s || rel.startsWith(s + "/")));
       } else if (name.endsWith(".md")) {
         if (excluded) {
@@ -78,7 +85,7 @@ export async function listMarkdown(root, exclude = [], { isCurrent } = {}) {
           return;
         }
         try {
-          out.push({ path: rel, stamp, text: await IOUtils.readUTF8(abs) });
+          out.push({ path: rel, stamp, text: await limit(() => IOUtils.readUTF8(abs)) });
         } catch {
           // Not readable as UTF-8: leave it out.
         }

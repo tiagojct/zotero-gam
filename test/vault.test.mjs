@@ -118,3 +118,43 @@ test("realFolderCase keeps the NFC form of a name on disk", async () => {
   const r = await realFolderCase(v, "Ciência");
   assert.equal(r, "ciência");
 });
+
+test("listMarkdown keeps no more than maxOpen file operations at the same time", async () => {
+  const v = tempVault();
+  const want = [];
+  // Deeper than maxOpen, so a walk that held a place while it waits for a subfolder would stop.
+  let deep = "";
+  for (let d = 0; d < 6; d++) {
+    deep = path.join(deep, `d${d}`);
+    for (let i = 0; i < 15; i++) want.push(path.join(deep, `n${i}.md`));
+  }
+  for (const f of want) {
+    fs.mkdirSync(path.join(v, path.dirname(f)), { recursive: true });
+    fs.writeFileSync(path.join(v, f), "t");
+  }
+  const real = { ...IOUtils };
+  let active = 0;
+  let peak = 0;
+  const counted = (fn) => async (...args) => {
+    active++;
+    peak = Math.max(peak, active);
+    try {
+      await new Promise((r) => setTimeout(r, 1));
+      return await fn(...args);
+    } finally {
+      active--;
+    }
+  };
+  for (const name of ["getChildren", "stat", "readUTF8", "getFile"]) IOUtils[name] = counted(real[name]);
+  try {
+    for (const maxOpen of [1, 4]) {
+      peak = 0;
+      const files = await listMarkdown(v, [], { maxOpen });
+      assert.deepEqual(files.map((f) => f.path).sort(), [...want].sort());
+      assert.ok(files.every((f) => f.text === "t"));
+      assert.equal(peak, maxOpen);
+    }
+  } finally {
+    Object.assign(IOUtils, real);
+  }
+});
