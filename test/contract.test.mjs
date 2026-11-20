@@ -1,6 +1,6 @@
 // The rules that gam shares with the other tools.
-// - Citekeys: test/fixtures/citekey-cases.json is an exact copy of the file in zotero-local-mcp,
-//   which runs the same cases on citekey.py.
+// - Citekeys and citations: test/fixtures/citekey-cases.json is an exact copy of the file in
+//   zotero-local-mcp, which runs the same cases on citekey.py and vaultkeys.py.
 // - Note format: "Create note" writes the frontmatter fields and the body sections of the Sub-Sub
 //   template, in the same order.
 // The checks against the other repos run only when the repos are next to this one (not in CI).
@@ -11,6 +11,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { baseKey, currentKey, uniqueKey } from "../content/lib/citekey.mjs";
 import { noteFromItem } from "../content/lib/template.mjs";
+import { extractRefs } from "../content/lib/refs.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fixture = path.join(here, "fixtures", "citekey-cases.json");
@@ -23,6 +24,9 @@ for (const c of CASES.base_key) {
 }
 for (const c of CASES.current_key) {
   test(`currentKey: ${c.name}`, () => assert.equal(currentKey(c.data), c.expected));
+}
+for (const c of CASES.cited) {
+  test(`cited: ${c.name}`, () => assert.deepEqual([...extractRefs(c.text).citekeys].sort(), c.expected));
 }
 for (const c of CASES.unique_key) {
   test(`uniqueKey: ${c.name}`, () => assert.equal(uniqueKey(c.base, new Set(c.taken)), c.expected));

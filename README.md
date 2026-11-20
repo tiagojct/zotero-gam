@@ -12,9 +12,14 @@ A gam is a meeting of two whaling ships at sea to exchange news.
 - Create note: writes `<literature folder>/<citekey>.md` with the frontmatter that Sub-Sub uses, and adds a Zotero child note with an obsidian:// link.
 - Create notes for collection: for the items of a collection that have no note. It shows a list of the files and citekeys first and writes nothing until you select Create. Clear the box of a note to leave it out. The items are those that the item list shows, so "Show Items from Subcollections" counts.
 - Add Zotero link to note: for an item whose literature note is in the vault but has no child note with the obsidian:// link (for example a note that another tool wrote), adds that child note. It also sets the citekey of the note when the item has none and no other item uses it. It writes nothing in the vault.
-- Context menu of items: Open note in Obsidian, Create note, Add Zotero link to note, Copy [[citekey]], Copy [@citekey] (a Pandoc citation; a key with characters that Pandoc would cut short is written as `[@{key}]`).
+- Citation keys: gam gives keys in the form jacinto2026, jacinto2026a (the rule of zotero-local-mcp). It never changes a key that exists.
+  - Tools > Citation keys…: for the library selected in the left pane. It lists the items without a key with the proposed keys, and the problems: a key that two items share (case ignored), and an item with one key in the field and another in Extra. Nothing is written until you select Assign. gam does not fix the problems.
+  - Give new items a citation key (setting, off by default): a new item gets a key 2 seconds after it is added, when it has a year and a creator or a title. An item made with New Item is empty at first, so it gets no automatic key: use Citation keys… when its fields are filled in. When more than 20 items arrive at once (for example, a first sync), gam gives no keys and says so.
+  - Key watch: when the key of an item changes (by hand, by a sync, or by another tool) and the vault uses the old key in a literature note or a citation, gam shows a notice with the old key, the new key and the notes. It cannot stop the change.
+  - A new key never takes a key of the library, or the citekey or file name of a literature note. For notes, case does not count (smith2020.md and Smith2020.md are the same file on macOS). For library keys it counts, as in Pandoc.
+- Context menu of items: Open note in Obsidian, Create note, Add Zotero link to note, Assign citation keys…, Copy [[citekey]], Copy [@citekey] (a Pandoc citation; a key with characters that Pandoc would cut short is written as `[@{key}]`).
 - Context menu of collections: Create notes for collection.
-- Tools menu: Refresh gam index.
+- Tools menu: Citation keys…, Refresh gam index.
 
 The plugin never changes or overwrites an existing vault file.
 
@@ -37,6 +42,7 @@ Zotero Settings > gam:
 | Folders that "Cited in" leaves out | archive,.obsidian,.trash |
 | Marker tag for the child note | empty |
 | Open the new note in Obsidian | on |
+| Give new items a citation key | off |
 
 - The vault folder must contain the `.obsidian` folder.
 - The literature folder is a folder inside the vault. It cannot be hidden or contain "..".

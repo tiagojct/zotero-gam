@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import vm from "node:vm";
-import { confirmNotes } from "../content/ui/preview-dialog.mjs";
+import { confirmNotes, confirmKeys } from "../content/ui/preview-dialog.mjs";
 
 // A small DOM: only what preview.js uses.
 class El {
@@ -102,4 +102,43 @@ test("confirmNotes opens a modal dialog on preview.xhtml and returns the selecti
   assert.equal(call.io.title, "Create notes: My papers");
   assert.match(call.io.intro, /3 notes will be written in lit\//);
   assert.deepEqual(call.io.rows.map((r) => r.id), [1, 2, 3]);
+});
+
+test("the key dialog shows each key and title, the problems, and names the action", () => {
+  const io = {
+    title: "Citation keys: L", intro: "2 items", verb: "Assign", noun: ["key", "keys"],
+    rows: [{ id: 1, title: "First", main: "kim2020" }, { id: 2, title: "Second", main: "park2020" }],
+    skipped: ["5 already have a citekey"], problems: ["dup2020 is the key of 2 items: A; B"], problemsTitle: "Problems that gam does not change",
+    selected: null,
+  };
+  const d = openDialog(io);
+  const text = d.root.text();
+  assert.match(text, /kim2020\s+First/);
+  assert.match(text, /Problems that gam does not change\s+dup2020 is the key of 2 items: A; B/);
+  assert.equal(d.accept.label, "Assign 2 keys");
+  d.boxes[0].checked = false;
+  d.list.listeners.change[0]();
+  assert.equal(d.accept.label, "Assign 1 key");
+  d.accepted();
+  assert.deepEqual([...io.selected], [2]);
+});
+
+test("with no rows the dialog shows only the problems, and Assign is off", () => {
+  const io = { title: "t", intro: "i", verb: "Assign", noun: ["key", "keys"], rows: [], skipped: [], problems: ["p"], selected: null };
+  const d = openDialog(io);
+  assert.match(d.root.text(), /Nothing to do\./);
+  assert.equal(d.accept.disabled, true);
+  assert.equal(d.allBox.checked, false);
+});
+
+test("confirmKeys opens the dialog with the key rows and the problems", () => {
+  let call = null;
+  const Gam = { Zotero: { getMainWindow: () => ({ openDialog: (url, name, flags, io) => { call = io; io.selected = [1]; } }) } };
+  const selected = confirmKeys(Gam, { name: "My Library", rows: [{ id: 1, title: "T", citekey: "a2020" }], skipped: [], problems: ["p"] });
+  assert.deepEqual(selected, [1]);
+  assert.equal(call.title, "Citation keys: My Library");
+  assert.match(call.intro, /^1 item in My Library has no citation key\. /);
+  assert.deepEqual(call.rows, [{ id: 1, title: "T", main: "a2020" }]);
+  assert.equal(call.verb, "Assign");
+  assert.deepEqual(call.problems, ["p"]);
 });

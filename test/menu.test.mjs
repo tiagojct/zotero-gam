@@ -60,3 +60,21 @@ test("the collection menu shows for a collection only, and only with a vault ind
   s.Gam.state.index = null;
   assert.equal(visible(entry, { collectionTreeRow: row(true) }), false);
 });
+
+test("Assign citation keys shows only for selected items without a key that gam can change", () => {
+  const withKey = setup("cai2026");
+  const entry = withKey.find("gam-item", "gam-menu-keys");
+  const editable = { isRegularItem: () => true, isEditable: () => true, library: { editable: true } };
+  assert.equal(visible(entry, { items: [editable] }), false);
+  const without = setup("");
+  const e2 = without.find("gam-item", "gam-menu-keys");
+  assert.equal(visible(e2, { items: [editable] }), true);
+  assert.equal(visible(e2, { items: [{ ...editable, library: { editable: false } }] }), false);
+  assert.equal(visible(e2, { items: [{ ...editable, isRegularItem: () => false }] }), false);
+});
+
+test("the Tools menu has Citation keys", () => {
+  const s = setup();
+  assert.ok(s.find("gam-tools", "gam-menu-keys-library"));
+  assert.equal(s.menus["gam-tools"].target, "main/menubar/tools");
+});

@@ -11,6 +11,7 @@ import { registerColumn } from "./ui/column.mjs";
 import { registerPane } from "./ui/pane.mjs";
 import { registerMenus } from "./ui/menu.mjs";
 import { createNote, linkNote, notify } from "./create.mjs";
+import { readAllKeys, checkKeyChanges, autoKeys } from "./keys.mjs";
 import { listMarkdown, checkVault, realFolderCase } from "./vault.mjs";
 
 const { setTimeout, clearTimeout } = ChromeUtils.importESModule("resource://gre/modules/Timer.sys.mjs");
@@ -19,6 +20,9 @@ const PREF = "extensions.gam.";
 const MIN_REFRESH_MS = 30000;
 // Settings save on each key press: scan once, this long after the last change.
 const SETTINGS_DELAY_MS = 1000;
+// New items get their automatic key this long after the last "add" event, so that a batch
+// (for example, from the browser connector) is one batch.
+const AUTO_KEY_DELAY_MS = 2000;
 
 let Zotero = null;
 let homeDir = "";
@@ -30,6 +34,8 @@ let run = 0;
 let prefObservers = [];
 let settingsChanged = null;
 let linksTimer = null;
+let newItemsTimer = null;
+let newItems = new Set();
 const logged = new Set();
 const focusHandlers = new Map();
 let knownNoteIDs = new Set();
@@ -48,7 +54,9 @@ export const Gam = {
   id: null,
   rootURI: null,
   // literatureFolder: the folder of the last scan, with the case of the folders on disk.
-  state: { index: null, error: null, links: new Map(), literatureFolder: null },
+  // keys: Map of item ID to citation key, for the key watch (null before the first scan).
+  // keysTouched: item IDs whose key changed while a scan reads the keys (see scan).
+  state: { index: null, error: null, links: new Map(), literatureFolder: null, keys: null, keysTouched: null },
   // Functions that Tasks 7 and 8 add, called after each refresh (for example, to redraw the column).
   onRefresh: [],
   // Functions called in shutdown() (for example, to unregister the column).
@@ -63,6 +71,7 @@ export const Gam = {
     exclude: () => String(pref("exclude") ?? "").split(",").map((s) => s.trim()).filter(Boolean),
     marker: () => String(pref("marker") || ""),
     openAfterCreate: () => pref("openAfterCreate") !== false,
+    autoKey: () => pref("autoKey") === true,
   },
 
   get Zotero() {
@@ -96,6 +105,12 @@ export const Gam = {
     notifierID = Zotero.Notifier.registerObserver({
       notify: (event, type, ids) => {
         if (isNoteEvent(event, ids, (id) => Zotero.Items.get(id), knownNoteIDs)) this.scheduleLinks();
+        try {
+          if (event === "add") this.queueNewItems(ids);
+          if (event === "modify") checkKeyChanges(this, ids);
+        } catch (e) {
+          Zotero.logError(e);
+        }
       },
     }, ["item"], "gam");
     this.actions.createNote = (item) => createNote(this, item).catch((e) => {
@@ -143,8 +158,11 @@ export const Gam = {
     this.onRefresh = [];
     clearTimeout(linksTimer);
     linksTimer = null;
+    clearTimeout(newItemsTimer);
+    newItemsTimer = null;
+    newItems = new Set();
     // An update without a restart keeps this module loaded: free the index and the links.
-    this.state = { index: null, error: null, links: new Map(), literatureFolder: null };
+    this.state = { index: null, error: null, links: new Map(), literatureFolder: null, keys: null, keysTouched: null };
     indexCache.clear();
     cacheVault = null;
     cacheReset = false;
@@ -205,6 +223,22 @@ export const Gam = {
     }
     await this.loadLinks(thisRun);
     if (stopped()) return;
+    // Keys written or seen while the query runs are newer than the query: keep them.
+    const touched = new Set();
+    this.state.keysTouched = touched;
+    let keys;
+    try {
+      keys = await readAllKeys(Zotero);
+    } finally {
+      if (this.state.keysTouched === touched) this.state.keysTouched = null;
+    }
+    if (stopped()) return;
+    for (const id of touched) {
+      const key = this.state.keys?.get(id);
+      if (key) keys.set(id, key);
+      else keys.delete(id);
+    }
+    this.state.keys = keys;
     Zotero.debug(`gam: index ${this.state.index ? this.state.index.citekeys().size : 0} literature notes, `
       + `${this.state.links.size} items with obsidian links`);
     this.notifyRefresh();
@@ -230,6 +264,18 @@ export const Gam = {
     }
     this.state.links = links;
     knownNoteIDs = ids;
+  },
+
+  /** Collect new items; give them keys AUTO_KEY_DELAY_MS after the last one (when the setting is on). */
+  queueNewItems(ids) {
+    if (!this.prefs.autoKey()) return;
+    for (const id of ids) newItems.add(id);
+    clearTimeout(newItemsTimer);
+    newItemsTimer = setTimeout(() => {
+      const batch = [...newItems];
+      newItems = new Set();
+      autoKeys(this, batch).catch((e) => Zotero.logError(e));
+    }, AUTO_KEY_DELAY_MS);
   },
 
   scheduleLinks() {

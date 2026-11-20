@@ -10,43 +10,9 @@ import { missingLinks, linksTo } from "./lib/state.mjs";
 // Items that linkNote works on now: a second call for the same item does nothing.
 const linking = new Set();
 import { createFile } from "./vault.mjs";
+import { libraryCitekeys, saveCitekey } from "./keys.mjs";
+import { notify } from "./notify.mjs";
 import { openInObsidian, noteState, canChange } from "./ui/common.mjs";
-
-/** The citekeys in the library: the native field and "Citation Key:" lines in Extra. */
-async function libraryCitekeys(Zotero) {
-  const keys = new Set();
-  const native = await Zotero.DB.columnQueryAsync(
-    "SELECT value FROM itemData JOIN itemDataValues USING (valueID) JOIN fieldsCombined USING (fieldID) "
-    + "WHERE fieldName = ?", ["citationKey"]);
-  for (const v of native || []) keys.add(String(v));
-  const extras = await Zotero.DB.columnQueryAsync(
-    "SELECT value FROM itemData JOIN itemDataValues USING (valueID) JOIN fieldsCombined USING (fieldID) "
-    + "WHERE fieldName = ? AND value LIKE ?", ["extra", "%citation key%"]);
-  for (const v of extras || []) {
-    for (const m of String(v).matchAll(/^\s*citation key\s*:\s*(\S+)\s*$/gim)) keys.add(m[1]);
-  }
-  return keys;
-}
-
-/** Store a new citekey: the native field when the item type has it, else a first line in Extra. */
-async function saveCitekey(Zotero, item, key) {
-  const fieldID = Zotero.ItemFields.getID("citationKey");
-  if (fieldID && Zotero.ItemFields.isValidForType(fieldID, item.itemTypeID)) {
-    item.setField("citationKey", key);
-  } else {
-    const lines = String(item.getField("extra") || "").split("\n").filter((l) => !/^\s*citation key\s*:/i.test(l));
-    item.setField("extra", [`Citation Key: ${key}`, ...lines].join("\n").trim());
-  }
-  await item.saveTx();
-}
-
-function notify(Zotero, message, ok = true) {
-  const pw = new Zotero.ProgressWindow();
-  pw.changeHeadline("gam");
-  pw.addDescription(message);
-  pw.show();
-  pw.startCloseTimer(ok ? 4000 : 8000);
-}
 
 /** Throws with a message for the user when gam must not change the item. */
 function checkItem(Gam, item) {

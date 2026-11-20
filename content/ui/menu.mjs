@@ -3,11 +3,18 @@
 import { noteState, missingLinks, canChange, openInObsidian } from "./common.mjs";
 import { createNotes, linkNotes, collectionItems, createNotesForCollection, notify } from "../create.mjs";
 import { wikilink, pandocCite } from "../lib/copy.mjs";
-import { confirmNotes } from "./preview-dialog.mjs";
+import { confirmNotes, confirmKeys } from "./preview-dialog.mjs";
+import { assignKeys } from "../keys.mjs";
 
 export function registerMenus(Gam) {
   const Zotero = Gam.Zotero;
   const single = (ctx) => (ctx.items?.length === 1 ? ctx.items[0] : null);
+  const needKey = (ctx) => (ctx.items || []).filter((i) => i.isRegularItem() && canChange(i) && !Gam.itemInfo(i).citekey);
+  const runKeys = (items, name) => assignKeys(Gam, items, { name, confirm: async (preview) => confirmKeys(Gam, preview) })
+    .catch((e) => {
+      Zotero.logError(e);
+      notify(Zotero, e.message || String(e), false);
+    });
 
   const itemMenu = Zotero.MenuManager.registerMenu({
     menuID: "gam-item",
@@ -48,6 +55,17 @@ export function registerMenus(Gam) {
         onCommand: (ev, ctx) => {
           const items = (ctx.items || []).filter((i) => canChange(i) && missingLinks(Gam, i));
           linkNotes(Gam, items).catch((e) => Zotero.logError(e));
+        },
+      },
+      {
+        menuType: "menuitem",
+        l10nID: "gam-menu-keys",
+        onShowing: (ev, ctx) => {
+          ctx.setVisible(needKey(ctx).length > 0);
+        },
+        onCommand: (ev, ctx) => {
+          const items = needKey(ctx);
+          if (items.length) runKeys(items, items.length === 1 ? "selected item" : "selected items");
         },
       },
       {
@@ -131,6 +149,26 @@ export function registerMenus(Gam) {
         onCommand: () => {
           Gam.clearCache();
           Gam.refresh({ force: true }).catch((e) => Zotero.logError(e));
+        },
+      },
+      {
+        menuType: "menuitem",
+        l10nID: "gam-menu-keys-library",
+        // All items of the library that is selected in the left pane.
+        onCommand: () => {
+          (async () => {
+            const selected = Zotero.getActiveZoteroPane()?.getSelectedLibraryIDs?.() || [];
+            if (selected.length > 1) {
+              notify(Zotero, "Select one library in the left pane, then choose Citation keys again.", false);
+              return;
+            }
+            const libraryID = selected[0] || Zotero.Libraries.userLibraryID;
+            const items = (await Zotero.Items.getAll(libraryID, true, false)).filter((i) => i.isRegularItem());
+            await runKeys(items, Zotero.Libraries.get(libraryID)?.name || "library");
+          })().catch((e) => {
+            Zotero.logError(e);
+            notify(Zotero, e.message || String(e), false);
+          });
         },
       },
     ],
