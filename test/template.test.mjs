@@ -10,14 +10,14 @@ test("round trip through parseFrontmatter", () => {
   const { data, body } = parseFrontmatter(noteFromItem(item, { citekey: "abdulnour2025", itemKey: "SCC3C8XC", today: "2026-11-14" }));
   assert.deepEqual(data, { title: 'Risk: "AI" #1', authors: ["Abdulnour, Raja-Elie E."], year: "2025", citekey: "abdulnour2025",
     "item-type": "journalArticle", venue: "N Engl J Med", doi: "10.1/x", zotero: "zotero://select/library/items/SCC3C8XC",
-    status: "to-read", tags: [], created: "2026-11-14" });
-  assert.equal(body.trim(), "## Summary\n\n## Key points");
+    evidence: "metadata", status: "to-read", tags: [], created: "2026-11-14" });
+  assert.equal(body.trim(), "## Summary\n\n## Key points\n\n## Methods\n\n## Notes");
 });
 
 test("field order follows the Sub-Sub notes", () => {
   const keys = noteFromItem(item, { citekey: "a", itemKey: "AAAAAAAA", today: "2026-11-14" })
     .split("\n").map((l) => l.match(/^([a-z-]+):/)?.[1]).filter(Boolean);
-  assert.deepEqual(keys, ["title", "authors", "year", "citekey", "item-type", "venue", "doi", "zotero", "status", "tags", "created"]);
+  assert.deepEqual(keys, ["title", "authors", "year", "citekey", "item-type", "venue", "doi", "zotero", "evidence", "status", "tags", "created"]);
 });
 
 test("venue falls back to bookTitle, then publisher; no DOI means no doi line", () => {

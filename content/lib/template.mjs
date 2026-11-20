@@ -35,6 +35,8 @@ export function noteFromItem(data, { citekey, itemKey, today, libraryPath = "lib
   if (data.DOI) lines.push(`doi: ${yamlString(data.DOI)}`);
   lines.push(
     `zotero: zotero://select/${libraryPath}/items/${itemKey}`,
+    // What the writer of the note read. gam reads only the Zotero metadata.
+    "evidence: metadata",
     "status: to-read",
     "tags: []",
     `created: ${today}`,
@@ -43,6 +45,10 @@ export function noteFromItem(data, { citekey, itemKey, today, libraryPath = "lib
     "## Summary",
     "",
     "## Key points",
+    "",
+    "## Methods",
+    "",
+    "## Notes",
     "",
   );
   return lines.join("\n");

@@ -8,9 +8,10 @@ const SMALL = new Set(["of", "for", "the", "and", "on", "in", "de", "da", "do", 
 const ARTICLES = new Set(["a", "an", "o", "os", "as", "um", "uma"]);
 
 export function slug(text) {
-  let s = String(text ?? "").normalize("NFKD").replace(/\p{M}/gu, "");
+  let s = String(text ?? "").normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
+  // After toLowerCase(), so that Ø, Æ, Ł and ẞ are mapped too.
   s = s.replace(/ß/g, "ss").replace(/ø/g, "o").replace(/æ/g, "ae").replace(/ł/g, "l");
-  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return s.replace(/[^a-z0-9]/g, "");
 }
 
 export function yearOf(data) {

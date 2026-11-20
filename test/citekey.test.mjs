@@ -25,8 +25,8 @@ test("baseKey: no creator, no date", () => {
 });
 
 test("baseKey matches the Python rule on uppercase special letters", () => {
-  // Python: base_key(...) == "goncalvesster1999" (the uppercase Ø is dropped).
-  assert.equal(baseKey({ creators: [{ creatorType: "author", lastName: "Gonçalves-Øster" }], date: "c. 1999" }), "goncalvesster1999");
+  // Python: base_key(...) == "goncalvesoster1999" (the uppercase Ø is mapped like ø).
+  assert.equal(baseKey({ creators: [{ creatorType: "author", lastName: "Gonçalves-Øster" }], date: "c. 1999" }), "goncalvesoster1999");
 });
 
 test("slug keeps only a-z and 0-9", () => {
