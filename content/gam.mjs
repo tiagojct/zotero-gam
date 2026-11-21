@@ -13,6 +13,7 @@ import { registerMenus } from "./ui/menu.mjs";
 import { createNote, linkNote, notify } from "./create.mjs";
 import { readAllKeys, checkKeyChanges, autoKeys } from "./keys.mjs";
 import { listMarkdown, checkVault, realFolderCase } from "./vault.mjs";
+import { registerEndpoints } from "./server.mjs";
 
 const { setTimeout, clearTimeout } = ChromeUtils.importESModule("resource://gre/modules/Timer.sys.mjs");
 
@@ -52,6 +53,7 @@ function pref(name) {
 
 export const Gam = {
   id: null,
+  version: null,
   rootURI: null,
   // literatureFolder: the folder of the last scan, with the case of the folders on disk.
   // keys: Map of item ID to citation key, for the key watch (null before the first scan).
@@ -97,10 +99,11 @@ export const Gam = {
     return { citekey, itemKey: item.key, doi: field("DOI") };
   },
 
-  async startup({ id, rootURI, Zotero: z, homeDir: home }) {
+  async startup({ id, version, rootURI, Zotero: z, homeDir: home }) {
     Zotero = z;
     homeDir = home;
     this.id = id;
+    this.version = version;
     this.rootURI = rootURI;
     notifierID = Zotero.Notifier.registerObserver({
       notify: (event, type, ids) => {
@@ -122,6 +125,7 @@ export const Gam = {
     registerColumn(this);
     registerPane(this);
     registerMenus(this);
+    registerEndpoints(this);
     const thisRun = ++run;
     refresher = makeRefresher(() => this.scan(thisRun), { minInterval: MIN_REFRESH_MS });
     // A changed setting takes effect one second after the last change.

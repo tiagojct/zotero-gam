@@ -20,6 +20,7 @@ A gam is a meeting of two whaling ships at sea to exchange news.
 - Context menu of items: Open note in Obsidian, Create note, Add Zotero link to note, Assign citation keys…, Copy [[citekey]], Copy [@citekey] (a Pandoc citation; a key with characters that Pandoc would cut short is written as `[@{key}]`).
 - Context menu of collections: Create notes for collection.
 - Tools menu: Citation keys…, Refresh gam index.
+- Selection endpoint: `GET http://127.0.0.1:23119/gam/selection` gives the items selected in the Zotero window (or the paper open in the reader), with key, library, type, title, citekey and DOI, and the selected collection. zotero-local-mcp reads it for get_selected_items. It reads only. It refuses requests from web pages (an Origin header) and from browsers.
 
 The plugin never changes or overwrites an existing vault file.
 
