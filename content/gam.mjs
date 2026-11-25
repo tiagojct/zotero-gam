@@ -93,6 +93,11 @@ export const Gam = {
     Zotero.debug(`gam: ${message}`);
   },
 
+  /** Zotero's own rename of a file after its parent item. */
+  renameFileFromParent(file) {
+    return ChromeUtils.importESModule("chrome://zotero/content/renameFiles.mjs").renameFileFromParent(file);
+  },
+
   /** {citekey, itemKey, doi} of a regular item. */
   itemInfo(item) {
     const field = (name) => {
