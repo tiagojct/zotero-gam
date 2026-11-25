@@ -193,8 +193,13 @@ export const Gam = {
     }, SETTINGS_DELAY_MS, { setTimeout, clearTimeout });
     prefObservers = ["vault", "vaultName", "literatureFolder", "exclude"].map((name) =>
       Zotero.Prefs.registerObserver(PREF + name, () => settingsChanged?.call(), true));
-    prefObservers.push(...["importOn", "importFolder", "importDone"].map((name) =>
-      Zotero.Prefs.registerObserver(PREF + name, () => folderImport?.changed(), true)));
+    prefObservers.push(Zotero.Prefs.registerObserver(PREF + "importOn", () => folderImport?.changed(), true));
+    // A folder setting saves on each key press: a path that is not complete is another folder. So a change
+    // turns the import off, and the user turns it on again.
+    prefObservers.push(...["importFolder", "importDone"].map((name) => Zotero.Prefs.registerObserver(PREF + name, () => {
+      folderImport?.changed();
+      if (this.prefs.importOn()) Zotero.Prefs.set(PREF + "importOn", false, true);
+    }, true)));
     // On ADDON_ENABLE the main window is already open, and Zotero does not call onMainWindowLoad for it.
     for (const win of Zotero.getMainWindows()) {
       if (win.ZoteroPane) this.onMainWindowLoad(win);

@@ -15,6 +15,7 @@ const TYPES = [
 ];
 const typeOf = (path) => TYPES.find((t) => t.ext.test(path));
 const plural = (n) => (n === 1 ? "1 file" : `${n} files`);
+const fold = (path) => path.normalize("NFC").toLowerCase();
 const digest = (path) => IOUtils.computeHexDigest(path, "sha256");
 
 /** {path, name, stamp} of a file that can be imported, or null. */
@@ -41,8 +42,9 @@ async function moveInto(path, folder) {
       await IOUtils.move(path, to, { noOverwrite: true });
       return;
     } catch (e) {
-      // Another program made the same name in between: try the next one.
-      if (!(await IOUtils.exists(path)) || !(await IOUtils.exists(to))) throw e;
+      // Another program made the same name in between: try the next one. Other errors end it: a move to
+      // another volume that fails halfway leaves a copy under the name.
+      if (e.name !== "NoModificationAllowedError") throw e;
     }
   }
 }
@@ -79,11 +81,11 @@ export function makeFolderImport({ Zotero, enabled, folder, done, check, notify,
     return `Import folder not found: ${dir}`;
   }
 
-  /** The files in the folder that are the same as in the last scan. */
-  async function ready(dir) {
+  /** The files that are the same as in the last scan. */
+  async function ready(paths) {
     const now = new Map();
     const out = [];
-    for (const path of (await IOUtils.getChildren(dir)).sort()) {
+    for (const path of [...paths].sort()) {
       const file = await candidate(path);
       if (!file) continue;
       now.set(path, file.stamp);
@@ -93,15 +95,22 @@ export function makeFolderImport({ Zotero, enabled, folder, done, check, notify,
     return out;
   }
 
-  /** The files in the library, by size: [{path, hash}]. */
+  /** The files in the library: bySize, size to [{path, hash}]; linked, the paths of linked files. */
   async function libraryFiles() {
     const bySize = new Map();
+    const linked = new Set();
     for (const item of await Zotero.Items.getAll(Zotero.Libraries.userLibraryID, false, false)) {
-      if (!item.isImportedAttachment?.()) continue;
-      const path = await item.getFilePathAsync();
-      if (path) await addFile(bySize, path);
+      // getAll leaves out items in the trash, but not the files of a parent in the trash.
+      if (!item.isAttachment() || item.isInTrash()) continue;
+      if (item.isImportedAttachment()) {
+        const path = await item.getFilePathAsync();
+        if (path) await addFile(bySize, path);
+      } else if (item.isLinkedFileAttachment()) {
+        const path = item.getFilePath();
+        if (path) linked.add(fold(path));
+      }
     }
-    return bySize;
+    return { bySize, linked };
   }
 
   async function addFile(bySize, path) {
@@ -125,8 +134,8 @@ export function makeFolderImport({ Zotero, enabled, folder, done, check, notify,
     return false;
   }
 
-  /** Import one file. Returns {item} or {known: true}, with problem when there is one; or only {problem}. */
-  async function importOne(file, target, library) {
+  /** Import one file. active(): false when the watch or its settings ended. Returns {item} or {known: true}, with problem when there is one; or only {problem}. */
+  async function importOne(file, target, library, active) {
     let hash;
     try {
       // Reading also brings a file that is only in iCloud to this computer.
@@ -140,11 +149,20 @@ export function makeFolderImport({ Zotero, enabled, folder, done, check, notify,
     } catch (e) {
       return { problem: `gam cannot read "${file.name}" (${e.message || e}). It tries again.` };
     }
-    if ((await candidate(file.path))?.stamp !== file.stamp) return {};
-    const bySize = await library();
+    const same = async () => (await candidate(file.path))?.stamp === file.stamp;
+    const { bySize, linked } = await library();
+    if (linked.has(fold(file.path))) {
+      handled.set(file.path, file.stamp);
+      return { problem: `"${file.name}" is a linked file in Zotero. gam leaves it in the folder.` };
+    }
+    if (!(await same()) || !active()) return {};
     handled.set(file.path, file.stamp);
     let result = { known: true };
     if (!(await inLibrary(bySize, file, hash))) {
+      if (!active()) {
+        handled.delete(file.path);
+        return {};
+      }
       let copy;
       try {
         const item = await Zotero.Attachments.importFromFile({ file: file.path, libraryID: Zotero.Libraries.userLibraryID });
@@ -158,6 +176,8 @@ export function makeFolderImport({ Zotero, enabled, folder, done, check, notify,
       }
       await addFile(bySize, copy);
     }
+    // A version that came in between is not in Zotero: a later scan imports it.
+    if (!(await same())) return result.item ? result : {};
     try {
       await moveInto(file.path, target);
       handled.delete(file.path);
@@ -181,7 +201,15 @@ export function makeFolderImport({ Zotero, enabled, folder, done, check, notify,
       for (const p of tell([problem])) notify(p, false);
       return;
     }
-    const files = await ready(dir);
+    let children;
+    try {
+      children = await IOUtils.getChildren(dir);
+    } catch (e) {
+      seen = new Map();
+      for (const p of tell([`gam cannot read the import folder ${dir} (${e.message || e}).`])) notify(p, false);
+      return;
+    }
+    const files = await ready(children);
     if (!files.length) return;
     // An item that is made while Zotero loads the library is not complete.
     await Zotero.Libraries.userLibrary.waitForDataLoad("item");
@@ -191,9 +219,10 @@ export function makeFolderImport({ Zotero, enabled, folder, done, check, notify,
     const names = [];
     const known = [];
     const problems = [];
+    const active = () => !stopped && round === thisRound && enabled();
     for (const file of files) {
-      if (stopped || round !== thisRound) break;
-      const r = await importOne(file, target, library);
+      if (!active()) break;
+      const r = await importOne(file, target, library, active);
       if (r.item) {
         items.push(r.item);
         names.push(file.name);

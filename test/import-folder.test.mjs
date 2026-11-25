@@ -51,7 +51,7 @@ function setup({ on = true, done = "", autoRecognize = true } = {}) {
   let timer = null;
   let n = 0;
   const addItem = (file, o = {}) => {
-    const item = { id: s.items.length + 1, isImportedAttachment: () => true, getFilePathAsync: async () => file, ...o };
+    const item = { id: s.items.length + 1, isAttachment: () => true, isLinkedFileAttachment: () => false, isImportedAttachment: () => true, isInTrash: () => false, getFilePathAsync: async () => file, ...o };
     s.items.push(item);
     return item;
   };
@@ -157,6 +157,7 @@ test("a file with another content than its name gives one notice and stays", asy
 test("a file that is already in Zotero is not imported again, and is moved", async () => {
   const s = setup();
   s.addStored("other name.pdf", `${PDF}same`);
+  s.items.push({ isAttachment: () => false });
   s.addStored("linked.pdf", `${PDF}link`, { isImportedAttachment: () => false });
   s.put("a.pdf", `${PDF}same`);
   s.put("b.pdf", `${PDF}link`);
@@ -167,6 +168,125 @@ test("a file that is already in Zotero is not imported again, and is moved", asy
   assert.deepEqual(s.imported.sort(), ["b.pdf", "c.pdf"]);
   assert.deepEqual(s.moved(), ["a.pdf", "b.pdf", "c.pdf"]);
   assert.deepEqual(s.notices, ["2 files imported from in.\n\"a.pdf\" was already in Zotero."]);
+});
+
+test("a file whose copy is in the trash, also with its parent, is imported again", async () => {
+  const s = setup();
+  s.addStored("a.pdf", `${PDF}x`, { isInTrash: () => true });
+  s.put("a.pdf", `${PDF}x`);
+  s.w.start();
+  await s.tick();
+  await s.tick();
+  assert.deepEqual([s.imported, s.moved()], [["a.pdf"], ["a.pdf"]]);
+});
+
+test("a file that is linked in Zotero stays, with one notice", async () => {
+  const s = setup();
+  s.put("a.pdf");
+  s.items.push({ isAttachment: () => true, isImportedAttachment: () => false, isLinkedFileAttachment: () => true, isInTrash: () => false, getFilePath: () => path.join(s.dir, "A.pdf") });
+  s.items.push({ isAttachment: () => true, isImportedAttachment: () => false, isLinkedFileAttachment: () => true, isInTrash: () => false, getFilePath: () => false });
+  s.w.start();
+  for (let i = 0; i < 4; i += 1) await s.tick();
+  assert.deepEqual([s.imported, s.left()], [[], ["a.pdf"]]);
+  assert.equal(s.notices.length, 1);
+  assert.match(s.notices[0], /"a\.pdf" is a linked file in Zotero/);
+});
+
+for (const known of [true, false]) {
+  test(`a file that changes before the move stays, and its new version is imported (${known ? "known" : "new"})`, async () => {
+    const s = setup();
+    if (known) s.addStored("k.pdf", `${PDF}v1`);
+    s.put("a.pdf", `${PDF}v1`);
+    s.w.start();
+    await s.tick();
+    const real = IOUtils.computeHexDigest;
+    // The change comes after the file was read, while the library file is read.
+    IOUtils.computeHexDigest = async (p, m) => {
+      const h = await real(p, m);
+      if (p.includes("storage")) s.put("a.pdf", `${PDF}v2 NEW`);
+      return h;
+    };
+    await s.tick();
+    IOUtils.computeHexDigest = real;
+    assert.deepEqual([s.left(), s.moved()], [["a.pdf"], []]);
+    for (let i = 0; i < 3; i += 1) await s.tick();
+    assert.deepEqual(s.moved(), ["a.pdf"]);
+    assert.equal(s.imported.length, known ? 1 : 2);
+    assert.ok(s.items.length >= 2);
+  });
+}
+
+test("a move that fails halfway makes one copy at most, and ends", async () => {
+  const s = setup();
+  s.done = path.join(s.root, "disk");
+  s.put("a.pdf");
+  const real = IOUtils.move;
+  let moves = 0;
+  // Another volume: the copy is there, and the source cannot be removed.
+  IOUtils.move = async (from, to) => {
+    moves += 1;
+    if (moves > 50) throw new Error("test stopped a loop");
+    fs.copyFileSync(from, to);
+    throw Object.assign(new Error("access denied"), { name: "NotAllowedError" });
+  };
+  s.w.start();
+  for (let i = 0; i < 4; i += 1) await s.tick();
+  IOUtils.move = real;
+  assert.equal(moves, 1);
+  assert.equal(s.notices.length, 1);
+  assert.match(s.notices[0], /could not move it .*access denied/);
+});
+
+test("a name that another program makes in between gets a number", async () => {
+  const s = setup();
+  s.done = path.join(s.root, "done");
+  s.put("a.pdf");
+  const real = IOUtils.move;
+  let first = true;
+  IOUtils.move = async (from, to, o) => {
+    if (first) fs.writeFileSync(to, "other");
+    first = false;
+    return real(from, to, o);
+  };
+  s.w.start();
+  await s.tick();
+  await s.tick();
+  IOUtils.move = real;
+  assert.deepEqual(s.moved(), ["a-2.pdf", "a.pdf"]);
+  assert.equal(fs.readFileSync(path.join(s.done, "a.pdf"), "utf8"), "other");
+});
+
+for (const how of ["stop", "changed", "off"]) {
+  test(`nothing is imported when the watch ends during a slow read (${how})`, async () => {
+    const s = setup();
+    s.put("a.pdf");
+    s.w.start();
+    await s.tick();
+    const real = IOUtils.computeHexDigest;
+    IOUtils.computeHexDigest = async (...a) => {
+      if (how === "off") s.on = false;
+      else s.w[how]();
+      return real(...a);
+    };
+    await s.tick();
+    IOUtils.computeHexDigest = real;
+    assert.deepEqual([s.imported, s.left()], [[], ["a.pdf"]]);
+  });
+}
+
+test("a folder that cannot be listed gives one notice", async () => {
+  const s = setup();
+  const real = IOUtils.getChildren;
+  IOUtils.getChildren = async () => { throw new Error("not permitted"); };
+  s.w.start();
+  for (let i = 0; i < 3; i += 1) await s.tick();
+  IOUtils.getChildren = real;
+  assert.equal(s.notices.length, 1);
+  assert.match(s.notices[0], /cannot read the import folder.*not permitted/);
+  s.put("a.pdf");
+  await s.tick();
+  await s.tick();
+  assert.deepEqual(s.imported, ["a.pdf"]);
 });
 
 test("the same content two times in the folder is one import", async () => {
