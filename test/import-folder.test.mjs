@@ -289,6 +289,20 @@ test("a folder that cannot be listed gives one notice", async () => {
   assert.deepEqual(s.imported, ["a.pdf"]);
 });
 
+test("an attachment with a path that is not valid does not stop the import", async () => {
+  const s = setup();
+  const bad = () => { throw new Error("bad path"); };
+  s.items.push({ isAttachment: () => true, isImportedAttachment: () => false, isLinkedFileAttachment: () => true, isInTrash: () => false, getFilePath: bad });
+  s.items.push({ isAttachment: () => true, isImportedAttachment: () => true, isInTrash: () => false, getFilePathAsync: async () => bad() });
+  s.addStored("k.pdf", `${PDF}same`);
+  s.put("a.pdf");
+  s.put("b.pdf", `${PDF}same`);
+  s.w.start();
+  await s.tick();
+  await s.tick();
+  assert.deepEqual([s.imported, s.moved()], [["a.pdf"], ["a.pdf", "b.pdf"]]);
+});
+
 test("the same content two times in the folder is one import", async () => {
   const s = setup();
   s.put("a.pdf", `${PDF}x`);

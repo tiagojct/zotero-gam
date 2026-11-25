@@ -102,12 +102,17 @@ export function makeFolderImport({ Zotero, enabled, folder, done, check, notify,
     for (const item of await Zotero.Items.getAll(Zotero.Libraries.userLibraryID, false, false)) {
       // getAll leaves out items in the trash, but not the files of a parent in the trash.
       if (!item.isAttachment() || item.isInTrash()) continue;
-      if (item.isImportedAttachment()) {
-        const path = await item.getFilePathAsync();
-        if (path) await addFile(bySize, path);
-      } else if (item.isLinkedFileAttachment()) {
-        const path = item.getFilePath();
-        if (path) linked.add(fold(path));
+      try {
+        if (item.isImportedAttachment()) {
+          const path = await item.getFilePathAsync();
+          if (path) await addFile(bySize, path);
+        } else if (item.isLinkedFileAttachment()) {
+          const path = item.getFilePath();
+          if (path) linked.add(fold(path));
+        }
+      } catch (e) {
+        // One path that is not valid does not stop the import.
+        Zotero.debug?.(`gam: ${e.message || e}`);
       }
     }
     return { bySize, linked };
