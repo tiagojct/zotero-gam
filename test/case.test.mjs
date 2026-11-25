@@ -68,6 +68,11 @@ const changes = [
   ["ASPERGILLUS NIGER KERATITIS IN FARMERS OF INDIA", "Aspergillus niger keratitis in farmers of India", "title-case"],
   ["RETAIL TURKEY MEAT IN MARCH AND POLISH FARMS", "Retail turkey meat in march and polish farms", "title-case"],
   ["US FOOD AND DRUG ADMINISTRATION APPROVAL SUMMARY TODAY", "Us Food and Drug Administration approval summary today", "title-case"],
+  ["Turkey's Response to the Pandemic and Its Health Workforce", "Turkey's response to the pandemic and its health workforce", "title-case"],
+  ["Lessons From Chile’s Reform of Primary Health Care", "Lessons from Chile’s reform of primary health care", "title-case"],
+  ["Evaluation of the US Food and Drug Administration’s Accelerated Approval Pathway",
+    "Evaluation of the US Food and Drug Administration’s accelerated approval pathway", "title-case"],
+  ["CHILE'S NATIONAL HEALTH REFORM AND CHILD MORTALITY TRENDS", "Chile's national health reform and child mortality trends", "title-case"],
   ["Responses in Guinea-Pig Trachea Smooth Muscle Preparations", "Responses in guinea-pig trachea smooth muscle preparations", "title-case"],
   ["GUINEA PIG TRACHEA SMOOTH MUSCLE IN JORDAN", "Guinea pig trachea smooth muscle in Jordan", "title-case"],
   ["Translation and Validation of the Arabic Version of the Asthma Control Test",
@@ -253,4 +258,21 @@ test("a title in capitals keeps the acronyms that the abstract has", () => {
   const title = "RESULTS OF FEV1 IN ADULTS WITH COPD AND ASTHMA";
   assert.equal(caseProposal({ title, lang: "en", terms: termsFor("en", []), names: new Set(), acronyms: found }).title,
     "Results of FEV1 in adults with COPD and asthma");
+});
+
+test("caseProposal changes nothing but the case of random titles", () => {
+  let seed = 11;
+  const rnd = (n) => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed % n; };
+  const words = ["Chile", "Chile’s", "Turkey's", "Food", "and", "Drug", "Administration", "Administration's", "Guinea", "Pig", "Pigs", "Guinea-Pig",
+    "na", "No", "Argentina", "Irão", "Peru", "Down", "Syndrome", "Step-Down", "World", "Bank", "A.", "A", "niger", "<i>", "</i>", "Ca<sup>2+</sup>",
+    "<span class=\"nocase\">", "</span>", "COPD", "FEV1", "Severe", "Asthma", "of", "Sub-Saharan", "Africa.", "IL-1β", "Straße", "ΟΔΟΣ", "L’Été", "march", "3D"];
+  const acr = new Set(["COPD", "FEV1"]);
+  for (let i = 0; i < 20000; i += 1) {
+    let t = Array.from({ length: 1 + rnd(9) }, () => words[rnd(words.length)]).join(" ");
+    if (rnd(4) === 0) t = t.toUpperCase();
+    for (const lang of ["en", "pt"]) {
+      const p = caseProposal({ title: t, lang, terms: termsFor(lang, []), names: new Set(["asthma"]), acronyms: acr });
+      assert.equal(p.title.toLowerCase(), t.toLowerCase());
+    }
+  }
 });

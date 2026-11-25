@@ -226,7 +226,11 @@ export function caseProposal({ title, lang, terms, names: known, acronyms: inCap
   const kept = new Map(segs.map((seg) => [seg, seg.tag ? [] : keptNames(lang, seg.text, caps > 0)]));
   const keptText = (w) => {
     const k = kept.get(w.seg).find((x) => w.start >= x.start && w.start < x.start + x.name.length);
-    return k && k.name.slice(w.start - k.start, w.start - k.start + w.text.length);
+    if (!k) return undefined;
+    const part = k.name.slice(w.start - k.start, w.start - k.start + w.text.length);
+    // The "'s" after a name.
+    const rest = w.text.slice(part.length);
+    return part + (caps ? rest.toLowerCase() : rest);
   };
   const sentence = () => applyTerms(mapWords(segs, (w) => keptText(w) ?? sentenceWord(w, caps > 0, known, inCapitals)), terms, false);
   if (caps >= 3 && caps <= 5) {
@@ -237,6 +241,8 @@ export function caseProposal({ title, lang, terms, names: known, acronyms: inCap
   const reason = toSentence ? "title-case" : "terms";
   const changed = toSentence ? sentence() : applyTerms(segs, terms, true);
   const next = join(changed);
+  // A change of anything but the case is never proposed.
+  if (next.toLowerCase() !== title.toLowerCase()) return { title, reasons: [], suggestion: null };
   const suggested = dropLooseTags(dropFootnote(join(mapWords(changed, (w) => {
     const fold = letters(w.text.replace(/['’].*$/, "")).toLowerCase();
     return !w.first && known.has(fold) && w.text === w.text.toLowerCase() ? capitalise(w.text) : w.text;
