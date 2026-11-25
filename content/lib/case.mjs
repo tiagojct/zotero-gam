@@ -221,12 +221,12 @@ export function caseProposal({ title, lang, terms, names: known, acronyms: inCap
   if (!lang) return { title, reasons: [], suggestion: null };
   const segs = segments(title);
   const caps = capsWords(segs);
-  const sentence = () => {
-    const have = new Set(terms.map((t) => t.toLowerCase()));
-    const kept = keptNames(lang, plainText(title), caps > 0).filter((t) => !have.has(t.toLowerCase()));
-    const all = kept.length ? [...terms, ...kept].sort((a, b) => b.length - a.length) : terms;
-    return applyTerms(mapWords(segs, (w) => sentenceWord(w, caps > 0, known, inCapitals)), all, false);
+  const kept = new Map(segs.map((seg) => [seg, seg.tag ? [] : keptNames(lang, seg.text, caps > 0)]));
+  const keptText = (w) => {
+    const k = kept.get(w.seg).find((x) => w.start >= x.start && w.start < x.start + x.name.length);
+    return k && k.name.slice(w.start - k.start, w.start - k.start + w.text.length);
   };
+  const sentence = () => applyTerms(mapWords(segs, (w) => keptText(w) ?? sentenceWord(w, caps > 0, known, inCapitals)), terms, false);
   if (caps >= 3 && caps <= 5) {
     const s = dropFootnote(join(sentence()));
     return { title, reasons: [], suggestion: s === title ? null : s };

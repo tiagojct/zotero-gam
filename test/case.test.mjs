@@ -58,7 +58,18 @@ const changes = [
   ["US Food and Drug Administration Approval Summary: Osimertinib for Adjuvant Treatment",
     "US Food and Drug Administration approval summary: osimertinib for adjuvant treatment", "title-case"],
   ["Prevalence of Asthma Symptoms in Children in Chile", "Prevalence of asthma symptoms in children in Chile", "title-case"],
-  ["Malaria Control in Mali, Niger and Senegal: A Cohort Study", "Malaria control in Mali, Niger and Senegal: a cohort study", "title-case"],
+  ["Malaria Control in Mali and Senegal: A Cohort Study", "Malaria control in Mali and Senegal: a cohort study", "title-case"],
+  ["Aspergillus niger Keratitis Among Farmers in Northern Nigeria", "Aspergillus niger keratitis among farmers in northern Nigeria", "title-case"],
+  ["Isolation of <i>A. niger</i> From Spoiled Food and Fresh Water in Nigeria", "Isolation of <i>A. niger</i> from spoiled food and fresh water in Nigeria", "title-case"],
+  ["Pathogenic Infection of turkey Flocks in Central Turkey Farms", "Pathogenic infection of turkey flocks in central Turkey farms", "title-case"],
+  ["Malignant Pleural Effusion of mali Phytoplasma Origin Today", "Malignant pleural effusion of mali phytoplasma origin today", "title-case"],
+  ["Allergic Contact Dermatitis to Nail Polish Among Adolescent Patients",
+    "Allergic contact dermatitis to nail polish among adolescent patients", "title-case"],
+  ["ASPERGILLUS NIGER KERATITIS IN FARMERS OF INDIA", "Aspergillus niger keratitis in farmers of India", "title-case"],
+  ["RETAIL TURKEY MEAT IN MARCH AND POLISH FARMS", "Retail turkey meat in march and polish farms", "title-case"],
+  ["US FOOD AND DRUG ADMINISTRATION APPROVAL SUMMARY TODAY", "Us Food and Drug Administration approval summary today", "title-case"],
+  ["Responses in Guinea-Pig Trachea Smooth Muscle Preparations", "Responses in guinea-pig trachea smooth muscle preparations", "title-case"],
+  ["GUINEA PIG TRACHEA SMOOTH MUSCLE IN JORDAN", "Guinea pig trachea smooth muscle in Jordan", "title-case"],
   ["Translation and Validation of the Arabic Version of the Asthma Control Test",
     "Translation and validation of the Arabic version of the asthma control test", "title-case"],
   ["Severe Asthma Outcomes in Turkey, Jordan, Chad and Guinea in August",
@@ -213,6 +224,12 @@ test("a Portuguese name after a hyphen keeps its capital", () => {
 test("a Portuguese title in Title Case keeps the capitals of names that are also common words", () => {
   assert.equal(propose("Cuidados de Saúde Primários na Argentina, na Suíça e no Irão", { lang: "pt" }).title,
     "Cuidados de saúde primários na Argentina, na Suíça e no Irão");
+  assert.equal(propose("Como os Médicos Irão Usar a Inteligência Artificial na Prática", { lang: "pt" }).title,
+    "Como os médicos irão usar a inteligência artificial na prática");
+  assert.equal(propose("Asma Grave na População Suíça e na População Argentina Adulta", { lang: "pt" }).title,
+    "Asma grave na população suíça e na população argentina adulta");
+  assert.equal(propose("Produção e Consumo de Carne de Peru nas Famílias Portuguesas", { lang: "pt" }).title,
+    "Produção e consumo de carne de peru nas famílias portuguesas");
   // The term of the user wins.
   assert.equal(propose("Effects of Gum Arabic Supplementation on Renal Function", { user: "arabic" }).title,
     "Effects of gum arabic supplementation on renal function");

@@ -56,20 +56,26 @@ const BUILTIN = {
   `),
 };
 
-// Names that are also common words. They give no capital, but a title in Title Case keeps the one that it has.
+// Names that are also common words. They give no capital, but a title in Title Case keeps the one that it has:
+// English ones everywhere, Portuguese ones only after "em", "no", "na" ("a população suíça" is not the country).
 const KEEP = {
-  en: list(`
-    Arabic, August, Chad, Chile, Food and Drug Administration, Guinea, Jordan, Mali, March, Niger, Polish, Turkey,
-    guinea pig, guinea pigs
-  `),
-  pt: list(`Argentina, Cuba, Equador, Estónia, Filipinas, Índia, Irão, Letónia, Malta, Peru, Sérvia, Síria, Suíça`),
+  en: "Arabic|August|Chad|Chile|Food and Drug Administration|Guinea(?![\\s-]pigs?(?!\\p{L}))|Jordan|Mali|March|Turkey",
+  pt: "(?<=\\s(?:em|no|na|nos|nas)\\s)(?:Argentina|Cuba|Equador|Estónia|Filipinas|Índia|Irão|Letónia|Malta|Peru|Sérvia|Síria|Suíça)",
 };
+// In a title in capitals, only those that are seldom something else.
+const KEEP_CAPITALS = { en: list("Chad, Chile, Food and Drug Administration, Jordan") };
+const whole = (names) => new RegExp(`(?<![\\p{L}\\p{N}])(?:${names})(?![\\p{L}\\p{N}])`, "gu");
 
-/** The names of a title in Title Case (or an English one in capitals) that keep their capital there. */
-export function keptNames(lang, plain, caps) {
-  if (caps && lang !== "en") return [];
-  const text = caps ? plain.toLowerCase() : plain;
-  return (KEEP[lang] || []).filter((t) => t === t.toLowerCase() || text.includes(caps ? t.toLowerCase() : t));
+/** The names in text that keep their capitals when its Title Case (or its capitals) goes: [{start, name}]. */
+export function keptNames(lang, text, caps) {
+  if (!caps) {
+    if (!KEEP[lang]) return [];
+    const sameCase = lang === "pt" ? text.replace(/\s(?:Em|No|Na|Nos|Nas)(?=\s)/g, (m) => m.toLowerCase()) : text;
+    return [...sameCase.replace(/([Gg]uinea[\s-])P(igs?)/g, "$1p$2").matchAll(whole(KEEP[lang]))]
+      .map((m) => ({ start: m.index, name: m[0] }));
+  }
+  return (KEEP_CAPITALS[lang] || []).flatMap((name) => [...text.matchAll(whole(name.toUpperCase()))]
+    .map((m) => ({ start: m.index, name })));
 }
 
 /** The terms of a file: one in each line, "#" for comments, "en:" or "pt:" before a term for one language. */
