@@ -5,3 +5,6 @@ pref("extensions.gam.exclude", "archive,.obsidian,.trash");
 pref("extensions.gam.marker", "");
 pref("extensions.gam.openAfterCreate", true);
 pref("extensions.gam.autoKey", false);
+pref("extensions.gam.cleanNew", false);
+pref("extensions.gam.orphanNotice", false);
+pref("extensions.gam.termsFile", "");

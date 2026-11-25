@@ -12,6 +12,8 @@ import { registerPane } from "./ui/pane.mjs";
 import { registerMenus } from "./ui/menu.mjs";
 import { createNote, linkNote, notify } from "./create.mjs";
 import { readAllKeys, checkKeyChanges, autoKeys } from "./keys.mjs";
+import { autoTitles } from "./clean.mjs";
+import { makeNewItems } from "./new-items.mjs";
 import { listMarkdown, checkVault, realFolderCase } from "./vault.mjs";
 import { registerEndpoints } from "./server.mjs";
 
@@ -21,9 +23,8 @@ const PREF = "extensions.gam.";
 const MIN_REFRESH_MS = 30000;
 // Settings save on each key press: scan once, this long after the last change.
 const SETTINGS_DELAY_MS = 1000;
-// New items get their automatic key this long after the last "add" event, so that a batch
-// (for example, from the browser connector) is one batch.
-const AUTO_KEY_DELAY_MS = 2000;
+// New items get their automatic title fixes and key this long after the last "add" event.
+const NEW_ITEMS_DELAY_MS = 2000;
 
 let Zotero = null;
 let homeDir = "";
@@ -35,8 +36,7 @@ let run = 0;
 let prefObservers = [];
 let settingsChanged = null;
 let linksTimer = null;
-let newItemsTimer = null;
-let newItems = new Set();
+let newItems = null;
 const logged = new Set();
 const focusHandlers = new Map();
 let knownNoteIDs = new Set();
@@ -74,10 +74,17 @@ export const Gam = {
     marker: () => String(pref("marker") || ""),
     openAfterCreate: () => pref("openAfterCreate") !== false,
     autoKey: () => pref("autoKey") === true,
+    cleanNew: () => pref("cleanNew") === true,
+    orphanNotice: () => pref("orphanNotice") === true,
+    termsFile: () => String(pref("termsFile") || "").trim(),
   },
 
   get Zotero() {
     return Zotero;
+  },
+
+  get homeDir() {
+    return homeDir;
   },
 
   log(message) {
@@ -105,11 +112,20 @@ export const Gam = {
     this.id = id;
     this.version = version;
     this.rootURI = rootURI;
+    // The titles first: a key can come from the title.
+    newItems = makeNewItems({
+      delay: NEW_ITEMS_DELAY_MS,
+      enabled: () => this.prefs.cleanNew() || this.prefs.autoKey(),
+      jobs: [(ids) => autoTitles(this, ids), (ids) => autoKeys(this, ids)],
+      onError: (e) => Zotero.logError(e),
+      setTimeout,
+      clearTimeout,
+    });
     notifierID = Zotero.Notifier.registerObserver({
       notify: (event, type, ids) => {
         if (isNoteEvent(event, ids, (id) => Zotero.Items.get(id), knownNoteIDs)) this.scheduleLinks();
         try {
-          if (event === "add") this.queueNewItems(ids);
+          if (event === "add") newItems?.add(ids);
           if (event === "modify") checkKeyChanges(this, ids);
         } catch (e) {
           Zotero.logError(e);
@@ -162,9 +178,8 @@ export const Gam = {
     this.onRefresh = [];
     clearTimeout(linksTimer);
     linksTimer = null;
-    clearTimeout(newItemsTimer);
-    newItemsTimer = null;
-    newItems = new Set();
+    newItems?.cancel();
+    newItems = null;
     // An update without a restart keeps this module loaded: free the index and the links.
     this.state = { index: null, error: null, links: new Map(), literatureFolder: null, keys: null, keysTouched: null };
     indexCache.clear();
@@ -268,18 +283,6 @@ export const Gam = {
     }
     this.state.links = links;
     knownNoteIDs = ids;
-  },
-
-  /** Collect new items; give them keys AUTO_KEY_DELAY_MS after the last one (when the setting is on). */
-  queueNewItems(ids) {
-    if (!this.prefs.autoKey()) return;
-    for (const id of ids) newItems.add(id);
-    clearTimeout(newItemsTimer);
-    newItemsTimer = setTimeout(() => {
-      const batch = [...newItems];
-      newItems = new Set();
-      autoKeys(this, batch).catch((e) => Zotero.logError(e));
-    }, AUTO_KEY_DELAY_MS);
   },
 
   scheduleLinks() {

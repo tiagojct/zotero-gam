@@ -6,6 +6,7 @@ import { planKeys, keyReport, reportLines, keyChanges, AUTO_KEY_MAX } from "./li
 import { skipSummary } from "./lib/plan-batch.mjs";
 import { canChange } from "./ui/common.mjs";
 import { notify } from "./notify.mjs";
+import { exclusive } from "./queue.mjs";
 
 const FIELDS_SQL = "SELECT itemID, fieldName, value FROM itemData JOIN itemDataValues USING (valueID) "
   + "JOIN fieldsCombined USING (fieldID) WHERE fieldName IN (?, ?)";
@@ -51,15 +52,6 @@ export async function takenKeys(Gam) {
     ...(index?.notes() || []).map((n) => n.path.split("/").pop().replace(/\.md$/, "")),
   ];
   return new Set([...(await libraryCitekeys(Gam.Zotero)), ...notes, ...notes.map((k) => k.toLowerCase())]);
-}
-
-// The key writers (automatic keys and "Citation keys") run one after the other, so each one
-// plans with the keys that the one before it wrote.
-let queue = Promise.resolve();
-function exclusive(fn) {
-  const run = queue.then(fn, fn);
-  queue = run.catch(() => {});
-  return run;
 }
 
 /** Keep the key watch current after a write, also during a scan (see Gam.scan). */
