@@ -214,6 +214,9 @@ export async function planLibrary(Gam, items, { orphans }) {
   return plan;
 }
 
+// With more changes than this, a notice comes before the writes: a rename takes about 0.2 s.
+const MANY_CHANGES = 10;
+
 // The notice has one line for each problem: not more than this.
 const MAX_ERRORS = 5;
 
@@ -333,6 +336,8 @@ async function cleanNow(Gam, items, { name, orphans, confirm, nothing }) {
     return { ...nothing, errors, cancelled: false };
   }
 
+  const changes = choices.titles.length + choices.files.length;
+  if (changes > MANY_CHANGES) notify(Zotero, `gam makes ${changes} changes. This can take a minute.`);
   const done = await exclusive(() => applyChoices(Gam, plan, choices, objects));
   errors.push(...done.errors);
   const offered = new Set(plan.orphans.map((o) => o.id));

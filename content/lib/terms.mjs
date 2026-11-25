@@ -1,12 +1,12 @@
 // Words that keep their capitals in titles. Pure module: no Zotero or browser globals.
-// A term that is also a common word (may, march, polish, turkey) is not in the lists.
+// A term that is also a common word (may, march, polish, turkey; irão, suíça, argentina) is not in the lists.
 
 const list = (text) => text.split(/[,\n]/).map((t) => t.trim()).filter(Boolean);
 
 const BUILTIN = {
   en: list(`
     Africa, Asia, Europe, America, Antarctica, Oceania, North America, South America, Latin America, Central America,
-    Sub-Saharan Africa, Middle East, Mediterranean, Scandinavia,
+    sub-Saharan Africa, Middle East, Mediterranean, Scandinavia,
     Afghanistan, Albania, Algeria, Angola, Argentina, Armenia, Australia, Austria, Azerbaijan, Bahrain, Bangladesh,
     Belarus, Belgium, Benin, Bolivia, Bosnia and Herzegovina, Botswana, Brazil, Bulgaria, Burkina Faso, Burundi,
     Cambodia, Cameroon, Canada, Cape Verde, Chile, China, Colombia, Costa Rica, Croatia, Cuba, Cyprus, Czech Republic,
@@ -15,7 +15,7 @@ const BUILTIN = {
     Honduras, Hong Kong, Hungary, Iceland, India, Indonesia, Iran, Iraq, Ireland, Israel, Italy, Ivory Coast, Jamaica,
     Japan, Kazakhstan, Kenya, Kosovo, Kuwait, Latvia, Lebanon, Lesotho, Liberia, Libya, Lithuania, Luxembourg,
     Madagascar, Malawi, Malaysia, Mali, Malta, Mauritania, Mauritius, Mexico, Moldova, Mongolia, Montenegro, Morocco,
-    Mozambique, Myanmar, Namibia, Nepal, Netherlands, New Zealand, Nicaragua, Niger, Nigeria, North Korea,
+    Mozambique, Myanmar, Namibia, Nepal, Netherlands, New Zealand, Nicaragua, Nigeria, North Korea,
     North Macedonia, Norway, Oman, Pakistan, Palestine, Panama, Papua New Guinea, Paraguay, Peru, Philippines, Poland,
     Portugal, Qatar, Romania, Russia, Rwanda, Saudi Arabia, Senegal, Serbia, Sierra Leone, Singapore, Slovakia,
     Slovenia, Somalia, South Africa, South Korea, Spain, Sri Lanka, Sudan, Sweden, Switzerland, Syria, Taiwan,
@@ -45,13 +45,13 @@ const BUILTIN = {
   `),
   pt: list(`
     África, América, América do Norte, América do Sul, América Latina, Antártida, Ásia, Europa, Oceânia,
-    Afeganistão, África do Sul, Albânia, Alemanha, Angola, Arábia Saudita, Argélia, Argentina, Austrália, Áustria,
+    Afeganistão, África do Sul, Albânia, Alemanha, Angola, Arábia Saudita, Argélia, Austrália, Áustria,
     Bélgica, Bolívia, Brasil, Bulgária, Cabo Verde, Canadá, Chile, China, Chipre, Colômbia, Coreia do Norte,
-    Coreia do Sul, Croácia, Cuba, Dinamarca, Egito, Equador, Escócia, Eslováquia, Eslovénia, Espanha, Estados Unidos,
-    Estónia, Etiópia, Filipinas, Finlândia, França, Grécia, Guiné-Bissau, Guiné Equatorial, Hungria, Índia, Indonésia,
-    Inglaterra, Irão, Iraque, Irlanda, Islândia, Israel, Itália, Japão, Letónia, Líbano, Lituânia, Luxemburgo, Malta,
+    Coreia do Sul, Croácia, Dinamarca, Egito, Escócia, Eslováquia, Eslovénia, Espanha, Estados Unidos,
+    Etiópia, Finlândia, França, Grécia, Guiné-Bissau, Guiné Equatorial, Hungria, Indonésia,
+    Inglaterra, Iraque, Irlanda, Islândia, Israel, Itália, Japão, Líbano, Lituânia, Luxemburgo,
     Marrocos, México, Moçambique, Nigéria, Noruega, Nova Zelândia, País de Gales, Países Baixos, Paquistão, Polónia,
-    Portugal, Quénia, Reino Unido, Roménia, Ruanda, Rússia, São Tomé e Príncipe, Senegal, Sérvia, Síria, Suécia, Suíça,
+    Portugal, Quénia, Reino Unido, Roménia, Ruanda, Rússia, São Tomé e Príncipe, Senegal, Suécia,
     Tailândia, Tanzânia, Timor-Leste, Tunísia, Turquia, Ucrânia, Uganda, Uruguai, Venezuela, Vietname, Zâmbia, Zimbabué
   `),
 };

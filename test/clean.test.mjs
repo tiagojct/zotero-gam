@@ -362,6 +362,23 @@ test("cleanItems writes titles, then filenames, then starts the lookups", async 
   assert.match(s.notices.at(-1), /2 titles and 1 filename changed\./);
 });
 
+test("cleanItems tells that many changes take time, before it writes", async () => {
+  const s = library();
+  const items = Array.from({ length: 11 }, (_, i) => s.makeItem(i + 1, { title: `Asthma in africa ${i}` }));
+  const titles = items.map((x, i) => ({ id: x.id, to: `Asthma in Africa ${i}` }));
+  const r = await cleanItems(s.Gam, items, { name: "L", orphans: [], confirm: async () => accept({ titles }) });
+  assert.equal(r.titles, 11);
+  assert.deepEqual(s.notices, ["gam makes 11 changes. This can take a minute.", "11 titles changed."]);
+});
+
+test("cleanItems gives no such notice for 10 changes", async () => {
+  const s = library();
+  const items = Array.from({ length: 10 }, (_, i) => s.makeItem(i + 1, { title: `Asthma in africa ${i}` }));
+  const titles = items.map((x, i) => ({ id: x.id, to: `Asthma in Africa ${i}` }));
+  await cleanItems(s.Gam, items, { name: "L", orphans: [], confirm: async () => accept({ titles }) });
+  assert.deepEqual(s.notices, ["10 titles changed."]);
+});
+
 test("a title or a filename that changed after the list was made is left", async () => {
   const s = library();
   const a = s.makeItem(1, { title: "Asthma in africa" });

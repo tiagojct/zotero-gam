@@ -46,6 +46,8 @@ const changes = [
   ["Asthma Outcomes in the U.S. Medicare Population During Winter",
     "Asthma outcomes in the U.S. medicare population during winter", "title-case"],
   ["USE OF FENO IN SEVERE ASTHMA", "Use of feno in severe asthma", "title-case"],
+  ["Severe asthma in sub-saharan africa", "Severe asthma in sub-Saharan Africa", "terms"],
+  ["Sub-saharan africa and severe asthma", "Sub-Saharan Africa and severe asthma", "terms"],
   ["ASTHMA IN PORTUGAL. A NEW STUDY", "Asthma in Portugal. A new study", "title-case"],
   ["<i>Fluent Confident Wrong</i> Models in Higher Education",
     "<i>Fluent confident wrong</i> models in higher education", "title-case"],
@@ -149,3 +151,20 @@ test("names: a capital in the middle of a sentence, never in lower case in the l
   assert.deepEqual([...names("", ev)], []);
   assert.deepEqual([...names(null, ev)], []);
 });
+
+// The words of these titles are also names of countries.
+const commonWords = [
+  "Sensitization to aspergillus niger in severe asthma",
+  "Como os médicos irão usar a inteligência artificial",
+  "Asma grave na população suíça e na população argentina",
+  "Crianças sírias e a população síria em Portugal",
+  "Estudo da população sérvia, estónia e letónia",
+  "As mulheres filipinas e os cuidados de saúde",
+  "A cuba de fermentação e a malta da universidade",
+  "Os países do equador e a saúde da mulher índia",
+];
+for (const title of commonWords) {
+  test(`caseProposal leaves the common words of ${JSON.stringify(title)}`, () => {
+    assert.deepEqual(propose(title, { lang: title.startsWith("Sens") ? "en" : "pt" }), { title, reasons: [], suggestion: null });
+  });
+}
