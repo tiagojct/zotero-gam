@@ -15,6 +15,7 @@ import { createNote, linkNote, notify } from "./create.mjs";
 import { readAllKeys, checkKeyChanges, autoKeys } from "./keys.mjs";
 import { autoTitles, cleanItems } from "./clean.mjs";
 import { makeNewItems } from "./new-items.mjs";
+import { makeOrphanWatch } from "./orphans.mjs";
 import { listMarkdown, checkVault, realFolderCase } from "./vault.mjs";
 import { registerEndpoints } from "./server.mjs";
 
@@ -38,6 +39,7 @@ let prefObservers = [];
 let settingsChanged = null;
 let linksTimer = null;
 let newItems = null;
+let orphanWatch = null;
 const logged = new Set();
 const focusHandlers = new Map();
 let knownNoteIDs = new Set();
@@ -127,11 +129,21 @@ export const Gam = {
       setTimeout,
       clearTimeout,
     });
+    orphanWatch = makeOrphanWatch({
+      Zotero,
+      enabled: () => this.prefs.orphanNotice(),
+      notify: (text) => notify(Zotero, text, false),
+      setTimeout,
+      clearTimeout,
+    });
     notifierID = Zotero.Notifier.registerObserver({
       notify: (event, type, ids) => {
         if (isNoteEvent(event, ids, (id) => Zotero.Items.get(id), knownNoteIDs)) this.scheduleLinks();
         try {
-          if (event === "add") newItems?.add(ids);
+          if (event === "add") {
+            newItems?.add(ids);
+            orphanWatch?.add(ids);
+          }
           if (event === "modify") checkKeyChanges(this, ids);
         } catch (e) {
           Zotero.logError(e);
@@ -189,6 +201,8 @@ export const Gam = {
     linksTimer = null;
     newItems?.cancel();
     newItems = null;
+    orphanWatch?.stop();
+    orphanWatch = null;
     // An update without a restart keeps this module loaded: free the index and the links.
     this.state = { index: null, error: null, links: new Map(), literatureFolder: null, keys: null, keysTouched: null };
     indexCache.clear();

@@ -9,6 +9,8 @@ Zotero 10 plugin. It shows the Obsidian vault facts of each Zotero item and crea
 
 - The plugin never changes or overwrites an existing vault file. It only creates new files.
 - Pure logic goes in content/lib/ (no Zotero or browser globals). Node tests import it.
+- A case change of a title is never automatic: it goes through the window Clean library. Automatic writes are only the safe fixes of lib/title.mjs.
+- Clean library: gam calls Zotero's own rename and lookup. Do not read or copy code, rules, labels or data of the Linter plugin (AGPL-3.0; gam is MIT).
 - The note format must stay the same as the format that Sub-Sub and zotero-local-mcp write.
 
 ## Commands
