@@ -12,13 +12,14 @@ class El {
   }
   setAttribute(k, v) { this.attrs[k] = String(v); }
   get className() { return this.attrs.class || ""; }
+  replaceChildren(...c) { this.children = []; this.append(...c); }
   append(...c) { for (const x of c) { x.parent = this; this.children.push(x); } }
   remove() { this.parent.children = this.parent.children.filter((c) => c !== this); }
   focus() { this.focused += 1; }
   addEventListener(t, fn) { (this.listeners[t] ||= []).push(fn); }
   fire(t, ev = {}) { for (const fn of this.listeners[t] || []) fn(ev); }
   all(fn) { return this.children.flatMap((c) => [...(fn(c) ? [c] : []), ...c.all(fn)]); }
-  text() { return [this.textContent, ...this.children.map((c) => c.text())].filter(Boolean).join(" "); }
+  text() { return [this.textContent, ...this.children.map((c) => c.text())].filter(Boolean).join(" ").replace(/\s+/g, " "); }
 }
 const tag = (t) => (e) => e.tag === t;
 const cls = (c) => (e) => e.className.split(" ").includes(c);
@@ -66,7 +67,7 @@ function open(p = plan()) {
     type(text) { this.field.value = text; this.field.fire("input"); },
   }));
   const result = () => JSON.parse(io.result);
-  return { io, root, accept, sections, section, rows, document, result, closed: () => closed,
+  return { io, root, accept, resize: () => win.resize(), sections, section, rows, document, result, closed: () => closed,
     acceptDialog: () => { doc.dialogaccept(); return result(); } };
 }
 const ticked = (rows) => rows.map((r) => r.check.checked);
@@ -231,6 +232,60 @@ test("Enter in a title does not accept the window", () => {
   d.rows("Titles")[0].field.fire("keydown", ev("Enter"));
   d.rows("Titles")[0].field.fire("keydown", ev("a"));
   assert.equal(stopped, 1);
+});
+
+const marked = (row) => row.el.all(cls("gam-diff")).map((e) => e.textContent);
+
+test("the words of the old title that change are marked, also after an edit", () => {
+  const p = plan();
+  p.titles = [
+    { id: 1, kind: "title", from: "The asthma in africa and in europe.", to: "The asthma in Africa and in Europe", reasons: ["safe", "terms"] },
+    { id: 2, kind: "title", from: "A  title here", to: "A title here", reasons: ["safe"] },
+    { id: 3, kind: "title", from: "<p>One two</p> three", to: "One two three", reasons: ["safe"] },
+  ];
+  const d = open(p);
+  const [a, b, c] = d.rows("Titles");
+  assert.deepEqual(marked(a), ["africa", "europe."]);
+  assert.deepEqual(marked(b), []);
+  assert.deepEqual(marked(c), ["<p>One", "two</p>"]);
+  assert.match(a.el.text(), /was: The asthma in africa and in europe\./);
+  a.type("The asthma in africa and in Europe");
+  assert.deepEqual(marked(a), ["europe."]);
+  a.type("");
+  assert.deepEqual(marked(a), []);
+});
+
+test("the old title is there in full, whatever is marked", () => {
+  const p = plan();
+  p.titles = [{ id: 1, kind: "title", from: "a b a  c b a", to: "a c a B", reasons: ["terms"] }];
+  const row = open(p).rows("Titles")[0];
+  const was = row.el.all(cls("gam-was"))[0];
+  const flat = (e) => e.textContent + e.children.map(flat).join("");
+  assert.equal(flat(was), "was: a b a  c b a");
+});
+
+test("a title field has as many lines as its text", () => {
+  const d = open();
+  const f = d.rows("Titles")[0].field;
+  // A field of 20 px for each row, and a text of 3 lines.
+  Object.defineProperty(f, "clientHeight", { get: () => f.rows * 20 });
+  Object.defineProperty(f, "scrollHeight", { get: () => Math.max(60, f.rows * 20) });
+  d.rows("Titles")[0].type("A long title");
+  assert.equal(f.rows, 3);
+  Object.defineProperty(d.rows("Titles")[1].field, "clientHeight", { get: () => 20 });
+  Object.defineProperty(d.rows("Titles")[1].field, "scrollHeight", { get: () => 999 });
+  d.rows("Titles")[1].type("It never fits");
+  assert.ok(d.rows("Titles")[1].field.rows <= 12);
+  assert.equal(d.rows("Title suggestions")[0].field.rows, 1);
+});
+
+test("the fields are measured again when the window has another size", () => {
+  const d = open();
+  const f = d.rows("Titles")[0].field;
+  Object.defineProperty(f, "clientHeight", { get: () => f.rows * 20 });
+  Object.defineProperty(f, "scrollHeight", { get: () => 40 });
+  d.resize();
+  assert.equal(f.rows, 2);
 });
 
 test("each control has an accessible name with the title or filename", () => {

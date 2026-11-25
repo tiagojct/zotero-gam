@@ -6,8 +6,8 @@
 (function () {
   const NS = "http://www.w3.org/1999/xhtml";
   const REASONS = { safe: "spaces, punctuation or tags", terms: "names", "title-case": "sentence case", suggestion: "check this one" };
-  // About the number of characters in one line of a title field.
-  const LINE = 88;
+  // A title field has not more lines than this.
+  const MAX_LINES = 12;
 
   function h(tag, text, className) {
     const e = document.createElementNS(NS, tag);
@@ -29,6 +29,30 @@
     c.type = "checkbox";
     c.setAttribute("aria-label", label);
     return c;
+  }
+
+  /** The words of from that are not in to, in order (the longest common part stays): [{text, changed}]. */
+  function diffWords(from, to) {
+    const a = from.split(/(\s+)/);
+    const b = to.split(/\s+/);
+    const words = a.filter((x, i) => i % 2 === 0);
+    // common[i][j]: the length of the longest common part of words from i and b from j.
+    const common = Array.from({ length: words.length + 1 }, () => new Array(b.length + 1).fill(0));
+    for (let i = words.length - 1; i >= 0; i -= 1) {
+      for (let j = b.length - 1; j >= 0; j -= 1) {
+        common[i][j] = words[i] === b[j] ? common[i + 1][j + 1] + 1 : Math.max(common[i + 1][j], common[i][j + 1]);
+      }
+    }
+    const out = [];
+    let j = 0;
+    words.forEach((word, i) => {
+      while (j < b.length && words[i] !== b[j] && common[i][j + 1] > common[i + 1][j]) j += 1;
+      const same = j < b.length && word === b[j];
+      if (same) j += 1;
+      if (word) out.push({ text: word, changed: !same });
+      if (a[2 * i + 1]) out.push({ text: a[2 * i + 1], changed: false });
+    });
+    return out;
   }
 
   const clean = (text) => String(text).replace(/\s+/g, " ").trim();
@@ -126,16 +150,26 @@
       row.field = h("textarea", null, "gam-field");
       row.field.value = r.to;
       const shortLine = h("div", "", "gam-left");
+      const was = h("div", "", "gam-title gam-was");
+      let marked = null;
       row.refresh = () => {
+        // An empty field writes nothing: no word changes.
+        if (marked !== row.value()) {
+          marked = row.value();
+          const parts = row.valid() ? diffWords(r.from, marked) : [{ text: r.from, changed: false }];
+          was.replaceChildren(h("span", "was: "), ...parts.map((p) => h("span", p.text, p.changed ? "gam-diff" : "")));
+        }
         const short = row.valid() && r.shortFor ? r.shortFor(row.value()) : "";
         shortLine.textContent = short ? `short title: ${short}` : "";
       };
-      const size = () => { row.field.rows = Math.max(1, Math.ceil(row.field.value.length / LINE)); };
-      size();
+      row.size = () => {
+        row.field.rows = 1;
+        while (row.field.scrollHeight > row.field.clientHeight && row.field.rows < MAX_LINES) row.field.rows += 1;
+      };
       row.field.setAttribute("aria-label", `New title of: ${r.from}`);
       row.field.addEventListener("input", () => {
         row.check.checked = row.valid();
-        size();
+        row.size();
         update();
       });
       // Enter would accept the window.
@@ -143,7 +177,7 @@
         if (ev.key === "Enter") ev.preventDefault();
       });
       const reasons = r.reasons.map((x) => REASONS[x] || x).join(", ");
-      row.text.append(row.field, h("div", `was: ${r.from}`, "gam-title"), h("div", reasons, "gam-left"), shortLine);
+      row.text.append(row.field, was, h("div", reasons, "gam-left"), shortLine);
       return row;
     }
 
@@ -229,6 +263,9 @@
       });
     });
     update();
+    const sizeAll = () => { for (const r of [...titles, ...suggestions]) r.size(); };
     window.sizeToContent();
+    sizeAll();
+    window.addEventListener("resize", sizeAll);
   });
 })();
