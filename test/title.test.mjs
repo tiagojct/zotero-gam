@@ -29,6 +29,12 @@ const cases = [
   ['10<sup class="x">6</sup> stem cells', "10<sup>6</sup> stem cells"], ["10<jats:sup>6</jats:sup> cells", "10<sup>6</sup> cells"],
   ["CO<jats:sub>2</jats:sub> and H<sub id='a'>2</sub>O", "CO<sub>2</sub> and H<sub>2</sub>O"],
   ['<i class="x">E. coli</i> and <b id="y">more</b>', "<i>E. coli</i> and <b>more</b>"],
+  ['10<span style="vertical-align: super">6</span> cells', '10<span style="vertical-align: super">6</span> cells'],
+  ['x<span class="sup">2</span> law', 'x<span class="sup">2</span> law'],
+  // No fix makes one number of two.
+  ["10<small>6</small> cells", "10<small>6</small> cells"], ['10<span class="x">6</span> cells', '10<span class="x">6</span> cells'],
+  ["10<scp><em>6</em></scp> cells", "10<scp><em>6</em></scp> cells"], ["In <em>2019</em>, 5<em>x</em>", "In 2019, 5x"],
+  ["20\u200b19", "2019"], ["<p>2019</p><p>2020</p>", "2019 2020"],
   ["<mml:math><mml:mi>x</mml:mi></mml:math> law", "x law"],
   ["<mml:math><mml:msup><mml:mn>10</mml:mn><mml:mn>6</mml:mn></mml:msup></mml:math> CFU",
     "<mml:math><mml:msup><mml:mn>10</mml:mn><mml:mn>6</mml:mn></mml:msup></mml:math> CFU"],
@@ -97,6 +103,7 @@ test("dropLooseTags removes the tags that have no pair", () => {
   assert.equal(dropLooseTags("10<sup>6 cells"), "10<sup>6 cells");
   const math = "<mml:math><mml:msup><mml:mn>10</mml:mn><mml:mn>6</mml:mn></mml:msup> CFU";
   assert.equal(dropLooseTags(math), math);
+  assert.equal(dropLooseTags("10<small>6 cells"), "10<small>6 cells");
 });
 
 test("safeFix takes an empty value as an empty title", () => {

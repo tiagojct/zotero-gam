@@ -51,6 +51,11 @@ const changes = [
   ["Health in Africa. Sub-Saharan Africa and the Burden of Severe Asthma Today",
     "Health in Africa. Sub-Saharan Africa and the burden of severe asthma today", "title-case"],
   ["Role of Ca<sup>2+</sup> Signaling in Severe Asthma Outcomes", "Role of Ca<sup>2+</sup> signaling in severe asthma outcomes", "title-case"],
+  ["A China-United States Comparison of Asthma Mortality Trends", "A China-United States comparison of asthma mortality trends", "title-case"],
+  ["The EU-Latin America Partnership for Global Health Research", "The EU-Latin America partnership for global health research", "title-case"],
+  ["Efficient Quasi-Monte Carlo Methods for Lung Function Models", "Efficient quasi-Monte Carlo methods for lung function models", "title-case"],
+  ["Care of non-down syndrome adults", "Care of non-Down syndrome adults", "terms"],
+  ["Role of <i>Na</i><sup>+</sup> Signaling in Severe Asthma Outcomes", "Role of <i>Na</i><sup>+</sup> signaling in severe asthma outcomes", "title-case"],
   ["Care in non-european union countries and non-alzheimer dementia",
     "Care in non-European Union countries and non-Alzheimer dementia", "terms"],
   ["ASTHMA IN PORTUGAL. A NEW STUDY", "Asthma in Portugal. A new study", "title-case"],
@@ -163,6 +168,7 @@ const commonWords = [
   "Sensible timing of food and drug administration in hospital",
   "Sense of red chile and gastric cancer",
   "Sensing phytoplasma mali in apple trees",
+  "Sensible use of tinta-da-china",
   "Sense of a step-down syndrome after sedation",
   "Sensible use of a real-world bank of exercises",
   "Efeito do extrato de pau-brasil e da tinta-da-china nos ratos",
@@ -180,6 +186,16 @@ for (const title of commonWords) {
     assert.deepEqual(propose(title, { lang: title.startsWith("Sens") ? "en" : "pt" }), { title, reasons: [], suggestion: null });
   });
 }
+
+test("a Portuguese name after a hyphen keeps its capital", () => {
+  assert.equal(propose("Cooperação Portugal-Brasil em Saúde Pública e Educação Médica", { lang: "pt" }).title,
+    "Cooperação Portugal-Brasil em saúde pública e educação médica");
+  assert.equal(propose("A cooperação portugal-brasil em saúde", { lang: "pt" }).title, "A cooperação Portugal-Brasil em saúde");
+});
+
+test("a title in capitals does not keep a short word that is also an acronym", () => {
+  assert.deepEqual([...acronyms("The OR was 1.4, AS and NO in AI", buildEvidence([]))], ["AI"]);
+});
 
 test("a title in capitals keeps the acronyms that the abstract has", () => {
   const ev = buildEvidence(["the results of a study"]);

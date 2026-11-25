@@ -103,8 +103,8 @@ Case proposals (preview only):
   (text can look like a tag). A fix never takes away a letter or a digit. Tags without a pair, and
   titles of 3 to 5 words in capitals (they can be acronyms), are suggestions.
 - Release review, 2026-11-25: a superscript or subscript never goes (10<sup>6</sup> is not 106), and math with
-  a structure keeps its tags. In a title in capitals, the acronyms of the abstract stay. After a hyphen, a
-  term of more than one word, or a Portuguese one, does not count.
+  a structure keeps its tags. No fix makes one number of two. In a title in capitals, the acronyms of the
+  abstract stay.
 
 New items: the add events are collected for 2 s, as for automatic keys. At most 20 items in a batch;
 more gives one notice and no write (call). A title with a case change from terms or Title Case that remains after the safe

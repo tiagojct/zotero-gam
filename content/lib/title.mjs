@@ -15,6 +15,7 @@ const DROPPED = `${BLOCK}|a|em|strong|u|s|small|big|font|tt|code|scp|inline-form
 const MATH_STRUCTURE = /<mml:(?!(?:math|mrow|mi|mn|mo|mtext|mstyle)\b)/i;
 // A superscript or a subscript never goes: 10<sup>6</sup> is not 106.
 const SCRIPT = /^(?:jats:)?(sup|sub)$/;
+const isScript = (name, attrs) => SCRIPT.test(name) || (name === "span" && /su[bp]/i.test(attrs));
 
 const isBlock = new RegExp(`^(?:${BLOCK})$`, "i");
 const isRich = new RegExp(`^(?:${RICH})$`, "i");
@@ -74,12 +75,13 @@ function cleanTags(title, loose) {
       continue;
     }
     const block = isBlock.test(lower);
-    const part = { text: m[0], tag: true, drop: loose && !SCRIPT.test(lower), block };
+    const part = { text: m[0], tag: true, drop: loose && !isScript(lower, attrs), block };
     parts.push(part);
     if (block && !close && /^\S/.test(title.slice(last)) && !title.slice(0, m.index).trim()) part.drop = true;
     if (block && close && /\S$/.test(title.slice(0, m.index)) && !title.slice(last).trim()) part.drop = true;
     if (!close) {
-      const keep = lower === "span" ? isNocase(attrs) || isSmallCaps(attrs) : isRich.test(lower) || SCRIPT.test(lower);
+      const keep = lower === "span" ? isNocase(attrs) || isSmallCaps(attrs) || isScript(lower, attrs)
+        : isRich.test(lower) || SCRIPT.test(lower);
       // The tag as Zotero writes it: without attributes and prefix.
       if (keep && lower !== "span" && (attrs || lower.startsWith("jats:"))) part.plain = `<${lower.replace("jats:", "")}>`;
       open.push({ name: lower, part, keep });
@@ -99,12 +101,17 @@ function cleanTags(title, loose) {
   return parts.map((p) => (!p.tag || !p.drop ? p.text : p.block ? " " : "")).join("");
 }
 
+// Characters that nobody sees.
+const HIDDEN = /[­​⁠﻿]/g;
+// The numbers of a title: no fix makes one number of two (10<small>6</small>).
+const numbers = (text) => (text.replace(HIDDEN, "").replace(/<[^<>]*>/g, " ").match(/\p{N}+/gu) || []).join(" ");
+
 const oneSpace = (text) => text.replace(/\s+/g, " ").trim();
 
 /** The title without the tags that have no pair. It can take away text that looks like a tag: only for the window. */
 export function dropLooseTags(title) {
   const t = oneSpace(cleanTags(title, true));
-  return /[\p{L}\p{N}]/u.test(t) ? t : title;
+  return /[\p{L}\p{N}]/u.test(t) && numbers(t) === numbers(title) ? t : title;
 }
 
 /** The title as parts: [{text, tag, nocase}]. nocase: text that Zotero must not change the case of. */
@@ -160,7 +167,7 @@ function dropFinalPunctuation(title) {
 }
 
 function fixOnce(title) {
-  const t = cleanTags(title, false).normalize("NFC").replace(/[­​⁠﻿]/g, "");
+  const t = cleanTags(title, false).normalize("NFC").replace(HIDDEN, "");
   return dropFinalPunctuation(oneSpace(t));
 }
 
@@ -182,5 +189,5 @@ export function safeFix(title) {
     before = t;
     t = fixOnce(t);
   }
-  return /[\p{L}\p{N}]/u.test(plainText(t)) && core(t) === core(decoded) ? t : original.trim();
+  return /[\p{L}\p{N}]/u.test(plainText(t)) && core(t) === core(decoded) && numbers(t) === numbers(decoded) ? t : original.trim();
 }

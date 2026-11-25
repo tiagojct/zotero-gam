@@ -62,11 +62,14 @@ export function names(abstract, evidence) {
 
 const ACRONYM = /(?<![\p{L}\p{N}])\p{Lu}[\p{Lu}\p{N}]+(?![\p{L}\p{N}])/gu;
 
+// Words of two letters that are also acronyms (odds ratio, nitric oxide): LOWER does not have them.
+const SHORT_WORD = /^(?:AM|AN|AS|AT|BE|BY|DO|GO|HE|IF|IN|IS|IT|ME|MY|NO|OF|ON|OR|SO|TO|UP|WE|DA|DE|EM|NA|OU|SE|UM)$/;
+
 /** The acronyms in an abstract: words in capitals that are never in lower case ("RESULTS" is a heading). */
 export function acronyms(abstract, evidence) {
   const text = nfc(abstract);
   const own = new Set(text.match(/(?<!\p{L})\p{Ll}{2,}(?!\p{L})/gu) || []);
-  return new Set((text.match(ACRONYM) || []).filter((w) => !own.has(w.toLowerCase()) && !evidence.lower.has(w.toLowerCase())));
+  return new Set((text.match(ACRONYM) || []).filter((w) => !SHORT_WORD.test(w) && !own.has(w.toLowerCase()) && !evidence.lower.has(w.toLowerCase())));
 }
 
 // --- Case
@@ -84,7 +87,8 @@ function titleWords(segs) {
   let plain = "";
   for (const [i, seg] of segs.entries()) {
     if (seg.tag) continue;
-    const script = /^<(?:sup|sub)\b/i.test(segs[i + 1]?.tag ? segs[i + 1].text : "");
+    const next = segs.findIndex((x, j) => j > i && !x.tag);
+    const script = segs.slice(i + 1, next < 0 ? segs.length : next).some((x) => /^<(?:sup|sub)\b/i.test(x.text));
     for (const m of seg.text.matchAll(WORD)) {
       const before = plain + seg.text.slice(0, m.index);
       const formula = script && m[0].length <= 2 && m.index + m[0].length === seg.text.length;
@@ -160,13 +164,12 @@ function termRegExp(terms) {
   return regExps.get(terms);
 }
 
-// Before a hyphen, these leave the next word a name ("non-European Union").
-const PREFIX = /(?<![\p{L}\p{N}])(?:non|anti|pro|pan|trans|pre|post)[-‐‑]$/iu;
-// After a hyphen, a term of more than one word, or a Portuguese one, is something else ("step-down syndrome", "pau-brasil").
-const joined = (before, term, lang) => /[-‐‑]$/.test(before) && (lang === "pt" || /\s/.test(term)) && !PREFIX.test(before);
+// After a hyphen, these are other words: step-down syndrome, real-world bank, pau-brasil, tinta-da-china.
+const joined = (before, fold) => (/^(?:down syndrome|world bank)$/.test(fold) && /[-‐‑]$/.test(before) && !/(?<!\p{L})non[-‐‑]$/iu.test(before))
+  || (/^(?:brasil|china)$/.test(fold) && /(?<!\p{L})(?:pau|da)[-‐‑]$/iu.test(before));
 
 /** Give the terms their case. onlyAdd: a match that would lose a capital does not change. */
-function applyTerms(segs, terms, onlyAdd, lang) {
+function applyTerms(segs, terms, onlyAdd) {
   const { regExp, byFold } = termRegExp(terms);
   if (!regExp) return segs;
   let plain = "";
@@ -179,7 +182,7 @@ function applyTerms(segs, terms, onlyAdd, lang) {
       let term = byFold.get(match.toLowerCase());
       if (!term || term.length !== match.length) return match;
       const left = before + seg.text.slice(0, offset);
-      if (joined(left, term, lang)) return match;
+      if (joined(left, term.toLowerCase())) return match;
       if (startsSentence(left) && isUpper(match[0])) term = match[0] + term.slice(1);
       const loses = [...match].some((c, i) => isUpper(c) && [...term][i] !== c);
       // "ASIA" in another title than one in capitals is an acronym.
@@ -213,14 +216,14 @@ export function caseProposal({ title, lang, terms, names: known, acronyms: inCap
   if (!lang) return { title, reasons: [], suggestion: null };
   const segs = segments(title);
   const caps = capsWords(segs);
-  const sentence = () => applyTerms(mapWords(segs, (w) => sentenceWord(w, caps > 0, known, inCapitals)), terms, false, lang);
+  const sentence = () => applyTerms(mapWords(segs, (w) => sentenceWord(w, caps > 0, known, inCapitals)), terms, false);
   if (caps >= 3 && caps <= 5) {
     const s = dropFootnote(join(sentence()));
     return { title, reasons: [], suggestion: s === title ? null : s };
   }
   const toSentence = caps >= 3 || (!caps && isTitleCase(titleWords(segs)));
   const reason = toSentence ? "title-case" : "terms";
-  const changed = toSentence ? sentence() : applyTerms(segs, terms, true, lang);
+  const changed = toSentence ? sentence() : applyTerms(segs, terms, true);
   const next = join(changed);
   const suggested = dropLooseTags(dropFootnote(join(mapWords(changed, (w) => {
     const fold = letters(w.text.replace(/['’].*$/, "")).toLowerCase();
