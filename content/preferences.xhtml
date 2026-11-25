@@ -8,22 +8,22 @@
   </groupbox>
   <groupbox>
     <label><html:h2 data-l10n-id="gam-pref-group-vault"/></label>
-    <label data-l10n-id="gam-pref-vault"/>
-    <html:input type="text" preference="extensions.gam.vault"/>
+    <label id="gam-pref-vault-label" data-l10n-id="gam-pref-vault"/>
+    <html:input type="text" aria-labelledby="gam-pref-vault-label" preference="extensions.gam.vault"/>
     <description data-l10n-id="gam-pref-vault-help"/>
-    <label data-l10n-id="gam-pref-vault-name"/>
-    <html:input type="text" preference="extensions.gam.vaultName"/>
-    <label data-l10n-id="gam-pref-literature"/>
-    <html:input type="text" preference="extensions.gam.literatureFolder"/>
+    <label id="gam-pref-vault-name-label" data-l10n-id="gam-pref-vault-name"/>
+    <html:input type="text" aria-labelledby="gam-pref-vault-name-label" preference="extensions.gam.vaultName"/>
+    <label id="gam-pref-literature-label" data-l10n-id="gam-pref-literature"/>
+    <html:input type="text" aria-labelledby="gam-pref-literature-label" preference="extensions.gam.literatureFolder"/>
     <description data-l10n-id="gam-pref-literature-help"/>
-    <label data-l10n-id="gam-pref-exclude"/>
-    <html:input type="text" preference="extensions.gam.exclude"/>
+    <label id="gam-pref-exclude-label" data-l10n-id="gam-pref-exclude"/>
+    <html:input type="text" aria-labelledby="gam-pref-exclude-label" preference="extensions.gam.exclude"/>
     <description data-l10n-id="gam-pref-exclude-help"/>
   </groupbox>
   <groupbox>
     <label><html:h2 data-l10n-id="gam-pref-group-notes"/></label>
-    <label data-l10n-id="gam-pref-marker"/>
-    <html:input type="text" preference="extensions.gam.marker"/>
+    <label id="gam-pref-marker-label" data-l10n-id="gam-pref-marker"/>
+    <html:input type="text" aria-labelledby="gam-pref-marker-label" preference="extensions.gam.marker"/>
     <description data-l10n-id="gam-pref-marker-help"/>
     <checkbox preference="extensions.gam.openAfterCreate" data-l10n-id="gam-pref-open-after-create"/>
   </groupbox>
@@ -37,18 +37,18 @@
     <checkbox preference="extensions.gam.cleanNew" data-l10n-id="gam-pref-clean-new"/>
     <description data-l10n-id="gam-pref-clean-new-help"/>
     <checkbox preference="extensions.gam.orphanNotice" data-l10n-id="gam-pref-orphan-notice"/>
-    <label data-l10n-id="gam-pref-terms-file"/>
-    <html:input type="text" preference="extensions.gam.termsFile"/>
+    <label id="gam-pref-terms-file-label" data-l10n-id="gam-pref-terms-file"/>
+    <html:input type="text" aria-labelledby="gam-pref-terms-file-label" preference="extensions.gam.termsFile"/>
     <description data-l10n-id="gam-pref-terms-file-help"/>
   </groupbox>
   <groupbox>
     <label><html:h2 data-l10n-id="gam-pref-group-import"/></label>
     <checkbox preference="extensions.gam.importOn" data-l10n-id="gam-pref-import-on"/>
-    <label data-l10n-id="gam-pref-import-folder"/>
-    <html:input type="text" preference="extensions.gam.importFolder"/>
+    <label id="gam-pref-import-folder-label" data-l10n-id="gam-pref-import-folder"/>
+    <html:input type="text" aria-labelledby="gam-pref-import-folder-label" preference="extensions.gam.importFolder"/>
     <description data-l10n-id="gam-pref-import-folder-help"/>
-    <label data-l10n-id="gam-pref-import-done"/>
-    <html:input type="text" preference="extensions.gam.importDone"/>
+    <label id="gam-pref-import-done-label" data-l10n-id="gam-pref-import-done"/>
+    <html:input type="text" aria-labelledby="gam-pref-import-done-label" preference="extensions.gam.importDone"/>
     <description data-l10n-id="gam-pref-import-done-help"/>
   </groupbox>
 </vbox>
