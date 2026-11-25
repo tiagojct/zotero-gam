@@ -2,7 +2,7 @@
 
 import { safeFix, segments, plainText } from "./title.mjs";
 import { termsFor } from "./terms.mjs";
-import { titleLanguage, names, caseProposal } from "./case.mjs";
+import { titleLanguage, names, acronyms, caseProposal } from "./case.mjs";
 
 /** The item types whose titles get case proposals: titles of works such as films and laws do not. */
 export const CASE_TYPES = new Set([
@@ -34,7 +34,7 @@ export function planTitle({ id, libraryID, key, type, title, language, abstract 
   const fixed = safeFix(from);
   const lang = CASE_TYPES.has(type) ? titleLanguage(fixed, language) : null;
   const proposal = lang
-    ? caseProposal({ title: fixed, lang, terms: termsOf(lang, userTerms), names: names(abstract, evidence) })
+    ? caseProposal({ title: fixed, lang, terms: termsOf(lang, userTerms), names: names(abstract, evidence), acronyms: acronyms(abstract, evidence) })
     : { title: fixed, reasons: [], suggestion: null };
   if (proposal.title !== from) {
     const reasons = [...(fixed === from ? [] : ["safe"]), ...proposal.reasons];

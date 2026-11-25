@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseTerms, termsFor } from "../content/lib/terms.mjs";
-import { titleLanguage, buildEvidence, names, caseProposal } from "../content/lib/case.mjs";
+import { acronyms, titleLanguage, buildEvidence, names, caseProposal } from "../content/lib/case.mjs";
 
 const propose = (title, { lang = "en", user = "", names: n = [] } = {}) =>
   caseProposal({ title, lang, terms: lang ? termsFor(lang, parseTerms(user)) : [], names: new Set(n) });
@@ -48,6 +48,11 @@ const changes = [
   ["USE OF FENO IN SEVERE ASTHMA", "Use of feno in severe asthma", "title-case"],
   ["Severe asthma in sub-saharan africa", "Severe asthma in sub-Saharan Africa", "terms"],
   ["Sub-saharan africa and severe asthma", "Sub-Saharan Africa and severe asthma", "terms"],
+  ["Health in Africa. Sub-Saharan Africa and the Burden of Severe Asthma Today",
+    "Health in Africa. Sub-Saharan Africa and the burden of severe asthma today", "title-case"],
+  ["Role of Ca<sup>2+</sup> Signaling in Severe Asthma Outcomes", "Role of Ca<sup>2+</sup> signaling in severe asthma outcomes", "title-case"],
+  ["Care in non-european union countries and non-alzheimer dementia",
+    "Care in non-European Union countries and non-Alzheimer dementia", "terms"],
   ["ASTHMA IN PORTUGAL. A NEW STUDY", "Asthma in Portugal. A new study", "title-case"],
   ["<i>Fluent Confident Wrong</i> Models in Higher Education",
     "<i>Fluent confident wrong</i> models in higher education", "title-case"],
@@ -154,6 +159,13 @@ test("names: a capital in the middle of a sentence, never in lower case in the l
 
 // The words of these titles are also names of countries.
 const commonWords = [
+  "Sensitivity to gum arabic in chronic kidney disease",
+  "Sensible timing of food and drug administration in hospital",
+  "Sense of red chile and gastric cancer",
+  "Sensing phytoplasma mali in apple trees",
+  "Sense of a step-down syndrome after sedation",
+  "Sensible use of a real-world bank of exercises",
+  "Efeito do extrato de pau-brasil e da tinta-da-china nos ratos",
   "Sensitization to aspergillus niger in severe asthma",
   "Como os médicos irão usar a inteligência artificial",
   "Asma grave na população suíça e na população argentina",
@@ -168,3 +180,13 @@ for (const title of commonWords) {
     assert.deepEqual(propose(title, { lang: title.startsWith("Sens") ? "en" : "pt" }), { title, reasons: [], suggestion: null });
   });
 }
+
+test("a title in capitals keeps the acronyms that the abstract has", () => {
+  const ev = buildEvidence(["the results of a study"]);
+  const found = acronyms("RESULTS: FEV1 and COPD. The COPD Assessment Test (CAT). A cat of mine. ROLE OF. I", ev);
+  assert.deepEqual([...found].sort(), ["COPD", "FEV1", "ROLE"]);
+  assert.deepEqual([...acronyms(null, ev)], []);
+  const title = "RESULTS OF FEV1 IN ADULTS WITH COPD AND ASTHMA";
+  assert.equal(caseProposal({ title, lang: "en", terms: termsFor("en", []), names: new Set(), acronyms: found }).title,
+    "Results of FEV1 in adults with COPD and asthma");
+});

@@ -9,12 +9,12 @@ const BUILTIN = {
     sub-Saharan Africa, Middle East, Mediterranean, Scandinavia,
     Afghanistan, Albania, Algeria, Angola, Argentina, Armenia, Australia, Austria, Azerbaijan, Bahrain, Bangladesh,
     Belarus, Belgium, Benin, Bolivia, Bosnia and Herzegovina, Botswana, Brazil, Bulgaria, Burkina Faso, Burundi,
-    Cambodia, Cameroon, Canada, Cape Verde, Chile, China, Colombia, Costa Rica, Croatia, Cuba, Cyprus, Czech Republic,
+    Cambodia, Cameroon, Canada, Cape Verde, China, Colombia, Costa Rica, Croatia, Cuba, Cyprus, Czech Republic,
     Czechia, Denmark, Dominican Republic, East Timor, Ecuador, Egypt, El Salvador, Equatorial Guinea, Eritrea, Estonia,
     Eswatini, Ethiopia, Finland, France, Gabon, Georgia, Germany, Ghana, Greece, Guatemala, Guinea-Bissau, Haiti,
     Honduras, Hong Kong, Hungary, Iceland, India, Indonesia, Iran, Iraq, Ireland, Israel, Italy, Ivory Coast, Jamaica,
     Japan, Kazakhstan, Kenya, Kosovo, Kuwait, Latvia, Lebanon, Lesotho, Liberia, Libya, Lithuania, Luxembourg,
-    Madagascar, Malawi, Malaysia, Mali, Malta, Mauritania, Mauritius, Mexico, Moldova, Mongolia, Montenegro, Morocco,
+    Madagascar, Malawi, Malaysia, Malta, Mauritania, Mauritius, Mexico, Moldova, Mongolia, Montenegro, Morocco,
     Mozambique, Myanmar, Namibia, Nepal, Netherlands, New Zealand, Nicaragua, Nigeria, North Korea,
     North Macedonia, Norway, Oman, Pakistan, Palestine, Panama, Papua New Guinea, Paraguay, Peru, Philippines, Poland,
     Portugal, Qatar, Romania, Russia, Rwanda, Saudi Arabia, Senegal, Serbia, Sierra Leone, Singapore, Slovakia,
@@ -30,7 +30,7 @@ const BUILTIN = {
     Mozambican, Nepalese, Nigerian, Nordic, Norwegian, Pakistani, Palestinian, Peruvian, Portuguese, Romanian,
     Russian, Rwandan, Saudi, Scandinavian, Scottish, Serbian, Singaporean, Slovak, Slovenian, Spanish, Sudanese,
     Swedish, Swiss, Syrian, Taiwanese, Tanzanian, Thai, Tunisian, Turkish, Ugandan, Ukrainian, Vietnamese, Welsh,
-    Arabic, Bengali, Catalan, Galician, Hebrew, Hindi, Mandarin Chinese, Persian, Swahili, Urdu,
+    Bengali, Catalan, Galician, Hebrew, Hindi, Mandarin Chinese, Persian, Swahili, Urdu,
     Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday,
     January, February, April, June, July, September, October, November, December,
     Alzheimer, Parkinson, Crohn, Hodgkin, Huntington, Sjögren, Raynaud, Tourette, Asperger, Kawasaki disease,
@@ -41,7 +41,7 @@ const BUILTIN = {
     American Academy of Allergy Asthma and Immunology, British Thoracic Society, Global Initiative for Asthma,
     Global Lung Function Initiative, World Health Organization, World Medical Association, United Nations,
     European Union, European Commission, European Parliament, European Medicines Agency, European Health Data Space,
-    Food and Drug Administration, National Institutes of Health, World Bank
+    National Institutes of Health, World Bank
   `),
   pt: list(`
     África, América, América do Norte, América do Sul, América Latina, Antártida, Ásia, Europa, Oceânia,

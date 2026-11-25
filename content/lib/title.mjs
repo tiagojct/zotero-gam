@@ -10,7 +10,11 @@ const RICH = "i|b|sub|sup|span";
 // Tags that come with imported titles. A name that is not here (for example <String>) is text.
 const BLOCK = "p|br|div|li|ul|ol|h[1-6]|title|tr|td|jats:title|jats:p";
 const DROPPED = `${BLOCK}|a|em|strong|u|s|small|big|font|tt|code|scp|inline-formula|tex-math|alternatives|`
-  + "jats:(?:italic|bold|sub|sup|sc)|mml:[a-z]+";
+  + "jats:(?:italic|bold|sub|sup|sc)|mml:(?:math|mrow|mi|mn|mo|mtext|mstyle)";
+// Math with a structure (a power, a fraction): without its tags it is another number.
+const MATH_STRUCTURE = /<mml:(?!(?:math|mrow|mi|mn|mo|mtext|mstyle)\b)/i;
+// A superscript or a subscript never goes: 10<sup>6</sup> is not 106.
+const SCRIPT = /^(?:jats:)?(sup|sub)$/;
 
 const isBlock = new RegExp(`^(?:${BLOCK})$`, "i");
 const isRich = new RegExp(`^(?:${RICH})$`, "i");
@@ -58,19 +62,26 @@ function decode(text) {
 function cleanTags(title, loose) {
   const parts = [];
   const open = [];
+  const math = MATH_STRUCTURE.test(title);
   let last = 0;
   for (const m of title.matchAll(tagRegExp(`${RICH}|${DROPPED}`))) {
     parts.push({ text: title.slice(last, m.index) });
     last = m.index + m[0].length;
     const [, close, name, attrs] = m;
     const lower = name.toLowerCase();
+    if (math && lower.startsWith("mml:")) {
+      parts.push({ text: m[0] });
+      continue;
+    }
     const block = isBlock.test(lower);
-    const part = { text: m[0], tag: true, drop: loose, block };
+    const part = { text: m[0], tag: true, drop: loose && !SCRIPT.test(lower), block };
     parts.push(part);
     if (block && !close && /^\S/.test(title.slice(last)) && !title.slice(0, m.index).trim()) part.drop = true;
     if (block && close && /\S$/.test(title.slice(0, m.index)) && !title.slice(last).trim()) part.drop = true;
     if (!close) {
-      const keep = lower === "span" ? isNocase(attrs) || isSmallCaps(attrs) : isRich.test(lower) && !attrs;
+      const keep = lower === "span" ? isNocase(attrs) || isSmallCaps(attrs) : isRich.test(lower) || SCRIPT.test(lower);
+      // The tag as Zotero writes it: without attributes and prefix.
+      if (keep && lower !== "span" && (attrs || lower.startsWith("jats:"))) part.plain = `<${lower.replace("jats:", "")}>`;
       open.push({ name: lower, part, keep });
       continue;
     }
@@ -79,6 +90,10 @@ function cleanTags(title, loose) {
     // Tags that are still open inside this pair have no pair.
     const [start] = open.splice(at);
     start.part.drop = part.drop = !start.keep;
+    if (start.keep && start.part.plain) {
+      start.part.text = start.part.plain;
+      part.text = start.part.plain.replace("<", "</");
+    }
   }
   parts.push({ text: title.slice(last) });
   return parts.map((p) => (!p.tag || !p.drop ? p.text : p.block ? " " : "")).join("");
@@ -120,12 +135,12 @@ export function plainText(title) {
 
 // Words that end with a dot.
 const ABBREVIATION = new RegExp("(?:^|[^\\p{L}\\p{N}])(?:al|etc|cf|viz|sp|spp|subsp|var|vs|ca|ed|eds|vol|no|nos|pp|approx|"
-  + "dept|univ|inc|ltd|lda|corp|co|bros|jr|sr|st|dr|mr|mrs|ms|prof)\\.$", "iu");
+  + "dept|univ|assoc|hosp|figs?|suppl|rev|yrs|cia|inc|ltd|lda|corp|co|bros|jr|sr|st|dr|mr|mrs|ms|prof)\\.$", "iu");
 
 /** True when the final dot of text belongs to its last word: an abbreviation, initials, or an ellipsis. */
 function keepDot(text) {
   if (/\.\s?\.\s?\.$/.test(text) || /\.\s\.$/.test(text)) return true;
-  return ABBREVIATION.test(text) || /(?:^|[^\p{L}\p{N}])\p{Lu}\.$/u.test(text) || /\.\p{L}\S*\.$/u.test(text);
+  return ABBREVIATION.test(text) || /&c\.$/.test(text) || /(?:^|[^\p{L}\p{N}])\p{Lu}\.$/u.test(text) || /\.\p{L}\S*\.$/u.test(text);
 }
 
 /** True when the last character of text can go: final punctuation that is not part of a word or an entity. */
@@ -149,8 +164,11 @@ function fixOnce(title) {
   return dropFinalPunctuation(oneSpace(t));
 }
 
-// What a fix must not change: the letters and digits, without what looks like a tag.
-const core = (text) => text.normalize("NFC").replace(/<[^<>]*>/g, "").replace(/[^\p{L}\p{N}]/gu, "");
+// What a fix must not change: the letters and digits, and the superscripts and subscripts ("^", "_"),
+// without what else looks like a tag.
+const core = (text) => text.normalize("NFC").replace(/[\^_]/g, "")
+  .replace(/<(\/?)(?:jats:)?(sup|sub)\b[^<>]*>/gi, (all, close, name) => (/p/i.test(name) ? "^" : "_"))
+  .replace(/<[^<>]*>/g, "").replace(/[^\p{L}\p{N}^_]/gu, "");
 
 /**
  * The title with the fixes that are always safe. It never makes a title empty, and never takes away a

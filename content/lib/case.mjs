@@ -60,6 +60,15 @@ export function names(abstract, evidence) {
   return out;
 }
 
+const ACRONYM = /(?<![\p{L}\p{N}])\p{Lu}[\p{Lu}\p{N}]+(?![\p{L}\p{N}])/gu;
+
+/** The acronyms in an abstract: words in capitals that are never in lower case ("RESULTS" is a heading). */
+export function acronyms(abstract, evidence) {
+  const text = nfc(abstract);
+  const own = new Set(text.match(/(?<!\p{L})\p{Ll}{2,}(?!\p{L})/gu) || []);
+  return new Set((text.match(ACRONYM) || []).filter((w) => !own.has(w.toLowerCase()) && !evidence.lower.has(w.toLowerCase())));
+}
+
 // --- Case
 
 const isUpper = (s) => s !== s.toLowerCase() && s === s.toUpperCase();
@@ -68,15 +77,18 @@ const capitalise = (w) => w.charAt(0).toUpperCase() + w.slice(1);
 // A word; an apostrophe stays in the word ("Bloom's").
 const WORD = /[\p{L}\p{N}][\p{L}\p{M}\p{N}]*(?:['’][\p{L}\p{N}]+)*/gu;
 
-/** The words of the title that can change: [{seg, start, text, first, before}]. first: starts a sentence. */
+/** The words of the title that can change: [{seg, start, text, first, before, formula}].
+ * first: starts a sentence. formula: a symbol before a superscript or subscript ("Ca" of Ca<sup>2+</sup>). */
 function titleWords(segs) {
   const out = [];
   let plain = "";
-  for (const seg of segs) {
+  for (const [i, seg] of segs.entries()) {
     if (seg.tag) continue;
+    const script = /^<(?:sup|sub)\b/i.test(segs[i + 1]?.tag ? segs[i + 1].text : "");
     for (const m of seg.text.matchAll(WORD)) {
       const before = plain + seg.text.slice(0, m.index);
-      out.push({ seg, start: m.index, text: m[0], first: startsSentence(before), before, nocase: seg.nocase });
+      const formula = script && m[0].length <= 2 && m.index + m[0].length === seg.text.length;
+      out.push({ seg, start: m.index, text: m[0], first: startsSentence(before), before, formula, nocase: seg.nocase });
     }
     plain += seg.text;
   }
@@ -111,13 +123,14 @@ function isTitleCase(words) {
 const LETTERED = /(?:hepatitis|vitamin|type|group|influenza|protein|factor|class|phase)\s+$/i;
 
 /** The word in sentence case. */
-function sentenceWord({ text, first, before }, allCaps, known) {
+function sentenceWord({ text, first, before, formula }, allCaps, known, inCapitals) {
   const name = known.has(letters(text.replace(/['’].*$/, "")).toLowerCase());
   if (allCaps) {
+    if (inCapitals.has(text)) return text;
     const low = text.toLowerCase();
     return first || name ? capitalise(low) : low;
   }
-  if (first || name) return text;
+  if (first || name || formula) return text;
   if (text === "A") return LETTERED.test(before) ? text : "a";
   if (letters(text).length === 1 || /\p{N}/u.test(text) || /.\p{Lu}/u.test(text)) return text;
   return text.toLowerCase();
@@ -147,8 +160,13 @@ function termRegExp(terms) {
   return regExps.get(terms);
 }
 
+// Before a hyphen, these leave the next word a name ("non-European Union").
+const PREFIX = /(?<![\p{L}\p{N}])(?:non|anti|pro|pan|trans|pre|post)[-‐‑]$/iu;
+// After a hyphen, a term of more than one word, or a Portuguese one, is something else ("step-down syndrome", "pau-brasil").
+const joined = (before, term, lang) => /[-‐‑]$/.test(before) && (lang === "pt" || /\s/.test(term)) && !PREFIX.test(before);
+
 /** Give the terms their case. onlyAdd: a match that would lose a capital does not change. */
-function applyTerms(segs, terms, onlyAdd) {
+function applyTerms(segs, terms, onlyAdd, lang) {
   const { regExp, byFold } = termRegExp(terms);
   if (!regExp) return segs;
   let plain = "";
@@ -160,7 +178,9 @@ function applyTerms(segs, terms, onlyAdd) {
     const text = seg.text.replace(regExp, (match, offset) => {
       let term = byFold.get(match.toLowerCase());
       if (!term || term.length !== match.length) return match;
-      if (!/[\p{L}\p{N}]/u.test(before + seg.text.slice(0, offset)) && isUpper(match[0])) term = match[0] + term.slice(1);
+      const left = before + seg.text.slice(0, offset);
+      if (joined(left, term, lang)) return match;
+      if (startsSentence(left) && isUpper(match[0])) term = match[0] + term.slice(1);
       const loses = [...match].some((c, i) => isUpper(c) && [...term][i] !== c);
       // "ASIA" in another title than one in capitals is an acronym.
       return loses && (onlyAdd || isAcronym(match)) ? match : term;
@@ -184,22 +204,23 @@ function dropFootnote(title) {
 
 /**
  * The case that a title must have. lang: titleLanguage. terms: termsFor. known: names of the abstract.
+ * inCapitals: acronyms of the abstract.
  * Returns {title, reasons: ["title-case"] | ["terms"] | [], suggestion}. suggestion: title with the capitals
  * that only the abstract supports, and without a footnote mark or a tag without a pair; a title of 3 to 5
  * words in capitals (they can be acronyms) in sentence case. null when that is the same.
  */
-export function caseProposal({ title, lang, terms, names: known }) {
+export function caseProposal({ title, lang, terms, names: known, acronyms: inCapitals = new Set() }) {
   if (!lang) return { title, reasons: [], suggestion: null };
   const segs = segments(title);
   const caps = capsWords(segs);
-  const sentence = () => applyTerms(mapWords(segs, (w) => sentenceWord(w, caps > 0, known)), terms, false);
+  const sentence = () => applyTerms(mapWords(segs, (w) => sentenceWord(w, caps > 0, known, inCapitals)), terms, false, lang);
   if (caps >= 3 && caps <= 5) {
     const s = dropFootnote(join(sentence()));
     return { title, reasons: [], suggestion: s === title ? null : s };
   }
   const toSentence = caps >= 3 || (!caps && isTitleCase(titleWords(segs)));
   const reason = toSentence ? "title-case" : "terms";
-  const changed = toSentence ? sentence() : applyTerms(segs, terms, true);
+  const changed = toSentence ? sentence() : applyTerms(segs, terms, true, lang);
   const next = join(changed);
   const suggested = dropLooseTags(dropFootnote(join(mapWords(changed, (w) => {
     const fold = letters(w.text.replace(/['’].*$/, "")).toLowerCase();
