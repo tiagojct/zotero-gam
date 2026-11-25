@@ -53,7 +53,7 @@ function open(p = plan()) {
     getElementById: (id) => ({ "gam-clean-dialog": dialog, "gam-clean-root": root })[id],
     addEventListener: (t, fn) => { doc[t] = fn; },
   };
-  const window = { arguments: [io], addEventListener: (t, fn) => { win[t] = fn; }, sizeToContent() {}, close: () => { closed += 1; } };
+  const window = { innerWidth: 950, arguments: [io], addEventListener: (t, fn) => { win[t] = fn; }, sizeToContent() {}, close: () => { closed += 1; } };
   vm.runInNewContext(fs.readFileSync(new URL("../content/clean.js", import.meta.url), "utf8"), { window, document });
   win.load();
   const sections = () => root.all(cls("gam-section"));
@@ -67,7 +67,7 @@ function open(p = plan()) {
     type(text) { this.field.value = text; this.field.fire("input"); },
   }));
   const result = () => JSON.parse(io.result);
-  return { io, root, accept, resize: () => win.resize(), sections, section, rows, document, result, closed: () => closed,
+  return { io, root, accept, resize: (width = window.innerWidth - 1) => { window.innerWidth = width; win.resize(); }, sections, section, rows, document, result, closed: () => closed,
     acceptDialog: () => { doc.dialogaccept(); return result(); } };
 }
 const ticked = (rows) => rows.map((r) => r.check.checked);
@@ -284,8 +284,44 @@ test("the fields are measured again when the window has another size", () => {
   const f = d.rows("Titles")[0].field;
   Object.defineProperty(f, "clientHeight", { get: () => f.rows * 20 });
   Object.defineProperty(f, "scrollHeight", { get: () => 40 });
+  d.resize(950);
+  assert.equal(f.rows, 1, "the height alone does not change the lines");
   d.resize();
   assert.equal(f.rows, 2);
+});
+
+test("the fields are measured together: the number of layouts does not grow with the rows", () => {
+  const p = plan();
+  p.titles = Array.from({ length: 300 }, (_, i) => ({ id: i, kind: "title", from: `old ${i}`, to: `new ${i}`, reasons: ["terms"] }));
+  const d = open(p);
+  // A layout: a read of a size after a write of rows.
+  let dirty = false;
+  let layouts = 0;
+  for (const { field } of d.rows("Titles")) {
+    let rows = 1;
+    const read = (v) => { if (dirty) { dirty = false; layouts += 1; } return v; };
+    Object.defineProperty(field, "rows", { get: () => rows, set: (v) => { if (v !== rows) dirty = true; rows = v; } });
+    Object.defineProperty(field, "clientHeight", { get: () => read(rows * 20) });
+    Object.defineProperty(field, "scrollHeight", { get: () => read(60) });
+  }
+  d.resize();
+  assert.ok(d.rows("Titles").every((r) => r.field.rows === 3));
+  assert.ok(layouts <= 13, String(layouts));
+});
+
+test("a very long title is not compared word by word", () => {
+  const p = plan();
+  const long = Array.from({ length: 5000 }, (_, i) => `w${i}`).join(" ");
+  p.titles = [{ id: 1, kind: "title", from: `${long}.`, to: long, reasons: ["safe"] }];
+  const t = Date.now();
+  const row = open(p).rows("Titles")[0];
+  assert.deepEqual(marked(row), []);
+  assert.ok(Date.now() - t < 500);
+});
+
+test("the sticky heading does not cover what has the focus", () => {
+  const css = fs.readFileSync(new URL("../content/preview.css", import.meta.url), "utf8");
+  assert.match(css, /\.gam-scroll \{[^}]*scroll-padding-block-start: 3em;/);
 });
 
 test("each control has an accessible name with the title or filename", () => {

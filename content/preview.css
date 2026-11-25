@@ -19,7 +19,7 @@
 .gam-problem { overflow-wrap: anywhere; line-height: 1.35; }
 
 /* The window "Clean library". */
-.gam-scroll { height: 480px; overflow-y: auto; padding: 4px;
+.gam-scroll { height: 480px; overflow-y: auto; padding: 4px; scroll-padding-block-start: 3em;
   border: 1px solid color-mix(in srgb, currentColor 22%, transparent); border-radius: 6px; }
 .gam-section { display: flex; flex-direction: column; gap: 4px; padding-block-end: 12px; }
 /* The heading stays visible while its rows scroll. */

@@ -8,6 +8,18 @@
   const REASONS = { safe: "spaces, punctuation or tags", terms: "names", "title-case": "sentence case", suggestion: "check this one" };
   // A title field has not more lines than this.
   const MAX_LINES = 12;
+  // A title with more words than this gets no marks: the time grows with the square.
+  const MAX_WORDS = 200;
+
+  /** Give the fields the lines of their text. Together: each pass is one layout, also with many fields. */
+  function fit(fields) {
+    let left = fields;
+    for (const f of left) f.rows = 1;
+    for (let n = 2; n <= MAX_LINES && left.length; n += 1) {
+      left = left.filter((f) => f.scrollHeight > f.clientHeight);
+      for (const f of left) f.rows = n;
+    }
+  }
 
   function h(tag, text, className) {
     const e = document.createElementNS(NS, tag);
@@ -36,6 +48,7 @@
     const a = from.split(/(\s+)/);
     const b = to.split(/\s+/);
     const words = a.filter((x, i) => i % 2 === 0);
+    if (Math.max(words.length, b.length) > MAX_WORDS) return [{ text: from, changed: false }];
     // common[i][j]: the length of the longest common part of words from i and b from j.
     const common = Array.from({ length: words.length + 1 }, () => new Array(b.length + 1).fill(0));
     for (let i = words.length - 1; i >= 0; i -= 1) {
@@ -162,14 +175,10 @@
         const short = row.valid() && r.shortFor ? r.shortFor(row.value()) : "";
         shortLine.textContent = short ? `short title: ${short}` : "";
       };
-      row.size = () => {
-        row.field.rows = 1;
-        while (row.field.scrollHeight > row.field.clientHeight && row.field.rows < MAX_LINES) row.field.rows += 1;
-      };
       row.field.setAttribute("aria-label", `New title of: ${r.from}`);
       row.field.addEventListener("input", () => {
         row.check.checked = row.valid();
-        row.size();
+        fit([row.field]);
         update();
       });
       // Enter would accept the window.
@@ -263,9 +272,15 @@
       });
     });
     update();
-    const sizeAll = () => { for (const r of [...titles, ...suggestions]) r.size(); };
+    const fitAll = () => fit(sections.flatMap((s) => s.rows).map((r) => r.field).filter(Boolean));
     window.sizeToContent();
-    sizeAll();
-    window.addEventListener("resize", sizeAll);
+    fitAll();
+    // The lines change only with the width.
+    let width = window.innerWidth;
+    window.addEventListener("resize", () => {
+      if (window.innerWidth === width) return;
+      width = window.innerWidth;
+      fitAll();
+    });
   });
 })();
