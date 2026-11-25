@@ -34,7 +34,7 @@ test("termsFor gives the terms of the language, longest first", () => {
 
 test("no built-in term is also a common word", () => {
   const all = [...termsFor("en", []), ...termsFor("pt", [])].map((t) => t.toLowerCase());
-  for (const w of ["may", "march", "august", "polish", "turkey", "jordan", "chad", "guinea", "who", "us", "it", "aids", "peru"]) {
+  for (const w of ["may", "march", "august", "polish", "turkey", "jordan", "chad", "guinea", "who", "us", "it", "aids", "black death", "peru"]) {
     if (w === "peru") assert.ok(!termsFor("pt", []).includes("Peru"));
     else assert.ok(!all.includes(w), w);
   }

@@ -71,8 +71,13 @@ export async function writeTitle(Gam, item, from, to) {
     await item.saveTx();
   } catch (e) {
     // The item object must not keep a title that is not in the database.
-    item.setField("title", from);
-    if (nextShort !== short) item.setField("shortTitle", short);
+    try {
+      item.setField("title", from);
+      if (nextShort !== short) item.setField("shortTitle", short);
+      await item.reload?.(["itemData"], true);
+    } catch (e2) {
+      Gam.Zotero.logError(e2);
+    }
     throw e;
   }
   await logWrite(Gam, item, "title", from, to);
@@ -140,7 +145,7 @@ function templateName(Zotero, file, parent) {
 
 /** The file row of an item, or null. Only the file that Zotero itself renames: the best attachment. */
 async function planFileOf(Zotero, item, ignored) {
-  if (!item.numAttachments()) return null;
+  if (!item.numAttachments() || !field(item, "title").trim()) return null;
   const file = await item.getBestAttachment();
   if (!file || file.isLinkedFileAttachment() || !canChange(file)) return null;
   if (!Zotero.Attachments.shouldAutoRenameAttachment(file)) return null;
@@ -167,7 +172,8 @@ const byText = (get) => (a, b) => get(a).localeCompare(get(b), "en", { sensitivi
 
 /**
  * The rows of the window "Clean library": {titles, suggestions, files, orphans, errors}. It writes nothing.
- * A file row has templateFor(title): the new name when the title of its item changes.
+ * A file row has templateFor(title): the new name when the title of its item changes. A title row has
+ * shortFor(title): the new short title, or "" when it does not change.
  */
 export async function planLibrary(Gam, items, { orphans }) {
   const Zotero = Gam.Zotero;
@@ -178,17 +184,28 @@ export async function planLibrary(Gam, items, { orphans }) {
   await Zotero.Items.loadDataTypes?.(list, ["itemData", "creators", "childItems"]);
   const evidence = new Map();
   const plan = { titles: [], suggestions: [], files: [], orphans: [], errors: [termsError, ignoredError].filter(Boolean) };
+  let failed = 0;
   for (const item of list) {
     try {
       if (!evidence.has(item.libraryID)) evidence.set(item.libraryID, await libraryEvidence(Gam, item.libraryID));
       const row = planTitle(titleData(Zotero, item), { userTerms: terms, evidence: evidence.get(item.libraryID), ignored });
-      if (row) plan[row.kind === "title" ? "titles" : "suggestions"].push(row);
+      if (row) {
+        const { from } = row;
+        const short = field(item, "shortTitle");
+        const shortFor = (to) => {
+          const next = newShortTitle(from, to, short);
+          return next === short ? "" : next;
+        };
+        plan[row.kind === "title" ? "titles" : "suggestions"].push({ ...row, shortFor });
+      }
       const file = await planFileOf(Zotero, item, ignored);
       if (file) plan.files.push(file);
     } catch (e) {
       Zotero.logError(e);
+      failed += 1;
     }
   }
+  if (failed) plan.errors.push(`gam could not check ${plural(failed, "item")} (see the Zotero error log).`);
   plan.orphans = orphans.filter((o) => isOrphan(Zotero, o)).map((o) => ({ id: o.id, name: o.attachmentFilename || field(o, "title") }));
   plan.titles.sort(byText((r) => r.from));
   plan.suggestions.sort(byText((r) => r.from));
@@ -222,7 +239,7 @@ async function applyChoices(Gam, plan, choices, objects) {
     }
   }
   const fileRows = new Map(plan.files.map((r) => [r.id, r]));
-  for (const id of choices.files) {
+  for (const { id, to } of choices.files) {
     const row = fileRows.get(id);
     if (!row) continue;
     try {
@@ -231,6 +248,8 @@ async function applyChoices(Gam, plan, choices, objects) {
         done.errors.push(changedError(row.from));
       } else if (!(await file.getFilePathAsync())) {
         done.errors.push(`${quoted(row.from)}: the file is not on this computer.`);
+      } else if (templateName(Zotero, file, Zotero.Items.get([row.parentID])[0]) !== to) {
+        done.errors.push(`${quoted(row.from)}: the new name is not the one that was shown. gam did not rename it.`);
       } else {
         await Gam.renameFileFromParent(file);
         if (file.attachmentFilename === row.from) {
@@ -266,7 +285,7 @@ let cleaning = false;
 
 /**
  * Clean items and files without a parent, after the window. confirm(plan) returns the choices
- * {titles: [{id, to}], files: [id], lookups: [id], ignored: [{kind, id}], createParent: id or null},
+ * {titles: [{id, to}], files: [{id, to}], lookups: [id], ignored: [{kind, id}], createParent: id or null},
  * or {cancelled: true, ignored}, or null.
  * Returns {titles, files, lookups, errors, cancelled, lookupsDone}; lookupsDone is a Promise.
  */
@@ -307,7 +326,10 @@ async function cleanNow(Gam, items, { name, orphans, confirm, nothing }) {
     if (ignoreError) notify(Zotero, ignoreError, false);
     const pane = Zotero.getActiveZoteroPane();
     await pane.selectItem(choices.createParent);
-    await pane.createParentItemsFromSelected();
+    // Zotero makes a parent for each selected file: it must be this one only.
+    const selected = pane.getSelectedItems();
+    if (selected.length === 1 && selected[0].id === choices.createParent) await pane.createParentItemsFromSelected();
+    else notify(Zotero, "Select the file in the library, then choose Create Parent Item in its menu.", false);
     return { ...nothing, errors, cancelled: false };
   }
 

@@ -25,12 +25,12 @@ const cls = (c) => (e) => e.className.split(" ").includes(c);
 
 const plan = () => ({
   titles: [
-    { id: 1, kind: "title", from: "Asthma in africa.", to: "Asthma in Africa", reasons: ["safe", "terms"] },
+    { id: 1, kind: "title", from: "Asthma in africa.", to: "Asthma in Africa", reasons: ["safe", "terms"], shortFor: (t) => (t.startsWith("Asthma in Africa") ? "Asthma" : "") },
     { id: 2, kind: "title", from: "Maps of europe", to: "Maps of Europe", reasons: ["terms"] },
   ],
   suggestions: [
-    { id: 3, kind: "suggestion", from: "A delphi study", to: "A Delphi study", reasons: ["abstract"] },
-    { id: 4, kind: "suggestion", from: "The handbook", to: "The Handbook", reasons: ["abstract"] },
+    { id: 3, kind: "suggestion", from: "A delphi study", to: "A Delphi study", reasons: ["suggestion"] },
+    { id: 4, kind: "suggestion", from: "The handbook", to: "The Handbook", reasons: ["suggestion"] },
   ],
   files: [{ id: 101, parentID: 1, from: "x.pdf", to: "Asthma in africa..pdf", title: "Asthma in africa.", templateFor: (t) => `${t}.pdf` },
     { id: 105, parentID: 5, from: "y.pdf", to: "Right.pdf", title: "Right", templateFor: (t) => `${t}.pdf` }],
@@ -75,7 +75,7 @@ test("the window has a section for each kind of row, with its count", () => {
   const d = open();
   assert.equal(d.document.documentElement.attrs.title, "Clean library: My Library");
   assert.deepEqual(d.sections().map((s) => s.attrs["aria-label"]),
-    ["Titles (2)", "Title suggestions from the abstract (2)", "Filenames (2)", "Files without a parent (1)"]);
+    ["Titles (2)", "Title suggestions (2)", "Filenames (2)", "Files without a parent (1)"]);
   assert.match(d.root.text(), /Nothing in the library changes until you select Apply\./);
   assert.match(d.root.text(), /was: Asthma in africa\./);
   assert.match(d.root.text(), /Terms file: gam cannot read \/x\./);
@@ -102,7 +102,7 @@ test("Apply gives the choices", () => {
   d.rows("Titles")[1].tick(false);
   assert.equal(d.accept.label, "Apply 4 changes");
   assert.deepEqual(d.acceptDialog(), {
-    titles: [{ id: 1, to: "Asthma in Africa" }, { id: 3, to: "A Delphi study" }], files: [105], lookups: [50], ignored: [], createParent: null,
+    titles: [{ id: 1, to: "Asthma in Africa" }, { id: 3, to: "A Delphi study" }], files: [{ id: 105, to: "Right.pdf" }], lookups: [50], ignored: [], createParent: null,
   });
 });
 
@@ -257,4 +257,30 @@ test("confirmClean opens the window and gives its choices", () => {
   assert.equal(call.io.name, "L");
   Gam.Zotero.getMainWindow = () => ({ openDialog() {} });
   assert.equal(confirmClean(Gam, plan(), "L"), null);
+});
+
+test("a changed short title shows, and follows the edited title", () => {
+  const d = open();
+  const [a, b] = d.rows("Titles");
+  assert.match(a.el.text(), /short title: Asthma/);
+  assert.doesNotMatch(b.el.text(), /short title/);
+  a.type("Other");
+  assert.doesNotMatch(a.el.text(), /short title/);
+});
+
+test("Select all is complete when only the rows that can be ticked are ticked", () => {
+  const p = plan();
+  p.files[0].templateFor = () => "x.pdf";
+  const d = open(p);
+  const all = d.section("Filenames").all(cls("gam-all"))[0].all(tag("input"))[0];
+  all.checked = true;
+  all.fire("change");
+  assert.deepEqual([all.checked, all.indeterminate], [true, false]);
+  all.checked = false;
+  all.fire("change");
+  assert.deepEqual(ticked(d.rows("Filenames")), [false, false]);
+});
+
+test("Enter has no default button: it cannot apply the window", () => {
+  assert.match(fs.readFileSync(new URL("../content/clean.xhtml", import.meta.url), "utf8"), /<dialog [^>]*defaultButton="none"/);
 });

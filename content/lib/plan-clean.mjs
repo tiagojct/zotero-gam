@@ -25,7 +25,7 @@ function termsOf(lang, userTerms) {
 
 /**
  * The row of one title: {id, kind, from, to, reasons}, or null. kind "title": safe fixes and case changes
- * ("safe", "terms", "title-case"); kind "suggestion": what only the abstract supports ("abstract").
+ * ("safe", "terms", "title-case"); kind "suggestion": what can be wrong ("suggestion").
  */
 export function planTitle({ id, libraryID, key, type, title, language, abstract }, { userTerms, evidence, ignored }) {
   const from = String(title ?? "");
@@ -41,7 +41,7 @@ export function planTitle({ id, libraryID, key, type, title, language, abstract 
     return isIgnored("title") ? null : { id, kind: "title", from, to: proposal.title, reasons };
   }
   if (proposal.suggestion === null || isIgnored("suggestion")) return null;
-  return { id, kind: "suggestion", from, to: proposal.suggestion, reasons: ["abstract"] };
+  return { id, kind: "suggestion", from, to: proposal.suggestion, reasons: ["suggestion"] };
 }
 
 /** True when a new item with this row needs a notice: a case change that gam does not make alone. */
@@ -52,8 +52,8 @@ export function needsNotice(row) {
 const fold = (words) => words.join(" ").toLowerCase().replace(/[:;,.]+$/, "");
 
 /**
- * The short title after a change of the title. When it is the start of the old title (case ignored), it
- * becomes the same start of the new title. Else it does not change.
+ * The short title after a change of the title. When it is the start of the old title (case ignored), the
+ * words that changed in the title change in it too. Else, and in its other words, it does not change.
  */
 export function newShortTitle(oldTitle, newTitle, shortTitle) {
   const short = String(shortTitle ?? "");
@@ -64,8 +64,10 @@ export function newShortTitle(oldTitle, newTitle, shortTitle) {
   const oldWords = words(oldTitle).slice(0, n);
   const newWords = words(newTitle).slice(0, n);
   if (fold(oldWords) !== fold(shortWords) || fold(newWords) !== fold(oldWords)) return short;
+  if (oldWords.every((w, i) => w === newWords[i])) return short;
+  const next = shortWords.map((w, i) => (oldWords[i] === newWords[i] ? w : newWords[i])).join(" ");
   // The punctuation after the start of the title is not part of the short title; "U.S." keeps its dot.
-  return /\.$/.test(shortWords.at(-1)) ? newWords.join(" ") : newWords.join(" ").replace(/[:;,.]+$/, "");
+  return /\.$/.test(shortWords.at(-1)) ? next : next.replace(/[:;,.]+$/, "");
 }
 
 function splitExt(name) {
@@ -83,7 +85,8 @@ export function planFile({ id, libraryID, key, parentID, current, template, igno
   if (!from || from === to) return null;
   const [base, ext] = splitExt(from);
   const [wanted, wantedExt] = splitExt(to);
-  if (!wanted.trim()) return null;
+  // "_" is Zotero's name for an empty template.
+  if (!wanted.trim() || wanted === "_") return null;
   if (ext === wantedExt && base.startsWith(wanted) && /^[ -]\d{1,2}$/.test(base.slice(wanted.length))) return null;
   if (ignored.has(ignoreKey({ libraryID, key, kind: "file", value: from }))) return null;
   return { id, parentID, from: String(current), to: String(template) };

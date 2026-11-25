@@ -29,7 +29,7 @@ test("a type outside CASE_TYPES gets safe fixes only", () => {
 test("an abstract word alone is a suggestion; with a safe fix or a term the row leaves it out", () => {
   const abstract = "We used the Delphi method.";
   assert.deepEqual(plan(item("A delphi study", { abstract })),
-    { id: 1, kind: "suggestion", from: "A delphi study", to: "A Delphi study", reasons: ["abstract"] });
+    { id: 1, kind: "suggestion", from: "A delphi study", to: "A Delphi study", reasons: ["suggestion"] });
   assert.deepEqual(plan(item("A delphi study.", { abstract })),
     { id: 1, kind: "title", from: "A delphi study.", to: "A delphi study", reasons: ["safe"] });
   assert.equal(plan(item("A delphi study in africa", { abstract })).to, "A delphi study in Africa");
@@ -65,11 +65,21 @@ test("needsNotice: a case change from terms or Title Case only", () => {
 
 test("newShortTitle follows the start of the title", () => {
   const n = newShortTitle;
-  assert.equal(n("Asthma in portuguese adults: a survey", "Asthma in Portuguese adults: a survey", "asthma in Portuguese Adults"), "Asthma in Portuguese adults");
+  assert.equal(n("Asthma in portuguese adults: a survey", "Asthma in Portuguese adults: a survey", "asthma in portuguese Adults"), "asthma in Portuguese Adults");
   assert.equal(n("<p>The  fallacy of ai: limits", "The fallacy of AI: limits", "The fallacy of ai"), "The fallacy of AI");
   assert.equal(n("Why europe? a study", "Why Europe? a study", "Why europe?"), "Why Europe?");
   assert.equal(n("U.S. policy in africa", "U.S. policy in Africa", "U.S."), "U.S.");
-  assert.equal(n("Africa. A study in africa", "Africa. A study in Africa", "africa"), "Africa");
+  assert.equal(n("Africa. A study in africa", "Africa. A study in Africa", "africa"), "africa");
+  assert.equal(n("In africa. A study", "In Africa. A study", "In africa"), "In Africa");
+});
+
+test("newShortTitle changes only the words that changed in the title", () => {
+  const n = newShortTitle;
+  assert.equal(n("asthma care in adults.", "asthma care in adults", "Asthma care"), "Asthma care");
+  assert.equal(n("Asthma in Adults: a Survey.", "Asthma in Adults: a Survey", "Asthma in adults"), "Asthma in adults");
+  assert.equal(n("the mHealth Study.", "the mHealth Study", "The MHealth Study"), "The MHealth Study");
+  assert.equal(n("The Role Of Care: a Review", "The role of care: a review", "The Role Of Care"), "The role of care");
+  assert.equal(n("A  b in africa", "A b in Africa", "A  b"), "A  b");
 });
 
 test("newShortTitle leaves a short title that is not the start, or when the words changed", () => {
@@ -94,6 +104,7 @@ test("planFile gives a row for a name that is not the name of the template", () 
   assert.ok(f("T.epub", "T.pdf"));
   assert.ok(f("T", "T.pdf"));
   assert.equal(f("x.pdf", ".pdf"), null, "no name from the template");
+  assert.equal(f("x.pdf", "_.pdf"), null, "Zotero's name for an empty template");
   assert.equal(f("", "T.pdf"), null);
   assert.equal(f("x.pdf", "T.pdf", [ignoreKey({ libraryID: 1, key: "BBBB2222", kind: "file", value: "x.pdf" })]), null);
 });

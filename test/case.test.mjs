@@ -78,6 +78,18 @@ test("a term does not give the title a lower-case first letter", () => {
     "MHealth tools for severe asthma patients everywhere");
 });
 
+test("a short title in capitals is a suggestion: it can be acronyms", () => {
+  assert.deepEqual(propose("WHO AND CDC"), { title: "WHO AND CDC", reasons: [], suggestion: "Who and cdc" });
+  assert.equal(propose("HIV TB COVID-19").reasons.length, 0);
+  assert.equal(propose("USE OF COVID-19 TESTS IN ALL SCHOOLS").title, "Use of COVID-19 tests in all schools");
+  assert.equal(propose("Black death rates in the United States").reasons.length, 0);
+  assert.equal(propose("Long-term Effects of Covid-19 Infection in Younger Adults").title, "Long-term effects of COVID-19 infection in younger adults");
+});
+
+test("a tag without a pair gives a suggestion", () => {
+  assert.equal(propose("The <i> tag").suggestion, "The tag");
+});
+
 test("terms are whole words, with Unicode letters", () => {
   assert.equal(propose("The africanização of a word").title, "The africanização of a word");
   assert.equal(propose("A delphié study", { user: "Delphi" }).title, "A delphié study");

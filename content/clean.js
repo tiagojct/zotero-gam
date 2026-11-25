@@ -5,7 +5,7 @@
 
 (function () {
   const NS = "http://www.w3.org/1999/xhtml";
-  const REASONS = { safe: "spaces, punctuation or tags", terms: "names", "title-case": "sentence case", abstract: "abstract" };
+  const REASONS = { safe: "spaces, punctuation or tags", terms: "names", "title-case": "sentence case", suggestion: "check this one" };
   // About the number of characters in one line of a title field.
   const LINE = 88;
 
@@ -125,6 +125,11 @@
       frame(row, r.from, ignoreButton(row, r.from));
       row.field = h("textarea", null, "gam-field");
       row.field.value = r.to;
+      const shortLine = h("div", "", "gam-left");
+      row.refresh = () => {
+        const short = row.valid() && r.shortFor ? r.shortFor(row.value()) : "";
+        shortLine.textContent = short ? `short title: ${short}` : "";
+      };
       const size = () => { row.field.rows = Math.max(1, Math.ceil(row.field.value.length / LINE)); };
       size();
       row.field.setAttribute("aria-label", `New title of: ${r.from}`);
@@ -138,7 +143,7 @@
         if (ev.key === "Enter") ev.preventDefault();
       });
       const reasons = r.reasons.map((x) => REASONS[x] || x).join(", ");
-      row.text.append(row.field, h("div", `was: ${r.from}`, "gam-title"), h("div", reasons, "gam-left"));
+      row.text.append(row.field, h("div", `was: ${r.from}`, "gam-title"), h("div", reasons, "gam-left"), shortLine);
       return row;
     }
 
@@ -183,7 +188,10 @@
     const picked = (rows) => rows.filter((r) => r.check.checked);
 
     function update() {
-      for (const r of [...titles, ...suggestions]) if (!r.valid()) r.check.checked = false;
+      for (const r of [...titles, ...suggestions]) {
+        r.refresh();
+        if (!r.valid()) r.check.checked = false;
+      }
       for (const r of files) {
         r.refresh();
         if (!r.valid()) r.check.checked = false;
@@ -195,8 +203,9 @@
         const label = `${s.title} (${s.rows.length})`;
         s.el.setAttribute("aria-label", label);
         s.heading.textContent = label;
-        s.all.checked = on === s.rows.length;
-        s.all.indeterminate = on > 0 && on < s.rows.length;
+        const possible = s.rows.filter((r) => r.valid()).length;
+        s.all.checked = possible > 0 && on === possible;
+        s.all.indeterminate = on > 0 && on < possible;
       }
       const accept = dialog.getButton("accept");
       if (accept) {
@@ -206,14 +215,14 @@
     }
 
     section("Titles", titles);
-    section("Title suggestions from the abstract", suggestions, { bulkIgnore: true });
+    section("Title suggestions", suggestions, { bulkIgnore: true });
     section("Filenames", files);
     section("Files without a parent", orphans);
 
     document.addEventListener("dialogaccept", () => {
       io.result = JSON.stringify({
         titles: picked([...titles, ...suggestions]).map((r) => ({ id: r.id, to: r.value() })),
-        files: picked(files).map((r) => r.id),
+        files: picked(files).map((r) => ({ id: r.id, to: r.to })),
         lookups: picked(orphans).map((r) => r.id),
         ignored,
         createParent: null,

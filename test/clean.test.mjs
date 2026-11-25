@@ -77,11 +77,10 @@ test("autoTitles saves a safe fix one time, with a log line and no notice", asyn
   const item = s.makeItem(1, { title: "A  title.", shortTitle: "a title" });
   assert.deepEqual(await autoTitles(s.Gam, [1]), { fixed: 1, toCheck: 0 });
   assert.equal(item.stored.title, "A title");
-  assert.equal(item.stored.shortTitle, "A title");
+  assert.equal(item.stored.shortTitle, "a title", "no case change without the window");
   assert.equal(item.saves, 1);
   assert.deepEqual(s.log().map(({ date, ...e }) => e), [
     { libraryID: 1, key: "KEY1", field: "title", old: "A  title.", new: "A title" },
-    { libraryID: 1, key: "KEY1", field: "shortTitle", old: "a title", new: "A title" },
   ]);
   assert.match(s.log()[0].date, /^\d{4}-\d\d-\d\dT/);
   assert.deepEqual(s.notices, []);
@@ -225,6 +224,7 @@ function library(options) {
   Zotero.ProgressQueues = { get: () => ({ getDialog: () => ({ open: () => calls.push(["dialog"]) }) }) };
   Zotero.getMainWindow = () => ({ Zotero_Tabs: { selectedID: s.tab || "zotero-pane" }, ZoteroPane: Zotero.getActiveZoteroPane() });
   const pane = {
+    getSelectedItems: () => [{ id: selected.at(-1)?.[0] }],
     selectItem: async (id) => selected.push([id]),
     selectItems: async (ids) => selected.push(ids),
     createParentItemsFromSelected: async () => calls.push(["createParent"]),
@@ -260,6 +260,9 @@ function library(options) {
   };
   return { ...s, makeItem, addFile, addOrphan, selected, pane };
 }
+// The files that the user chose, with the names that the window showed.
+const names = { 101: "Doe - Asthma in Africa.pdf", 102: "Doe - Right.pdf", 103: "Doe - Right.pdf", 105: "Doe - Right.pdf" };
+const chosen = (...ids) => ids.map((id) => ({ id, to: names[id] }));
 const accept = (o = {}) => ({ titles: [], files: [], lookups: [], ignored: [], createParent: null, ...o });
 
 test("planLibrary gives the rows of titles, suggestions, files and files without a parent", async () => {
@@ -271,7 +274,7 @@ test("planLibrary gives the rows of titles, suggestions, files and files without
   s.addFile(a, "Doe - Asthma in africa..pdf");
   const orphan = s.addOrphan(50);
   const p = await planLibrary(s.Gam, [a, b, c], { orphans: [orphan] });
-  assert.deepEqual(p.titles, [{ id: 1, kind: "title", from: "Asthma in africa.", to: "Asthma in Africa", reasons: ["safe", "terms"] }]);
+  assert.deepEqual(p.titles.map(({ shortFor, ...r }) => r), [{ id: 1, kind: "title", from: "Asthma in africa.", to: "Asthma in Africa", reasons: ["safe", "terms"] }]);
   assert.deepEqual(p.suggestions.map((r) => [r.id, r.to]), [[2, "A Delphi study"]]);
   assert.deepEqual(p.files.map(({ templateFor, ...r }) => r), [{ id: 103, parentID: 3, from: "other.pdf", to: "Doe - Right.pdf", title: "Right" }]);
   assert.deepEqual(p.orphans, [{ id: 50, name: "scan-50.pdf" }]);
@@ -341,13 +344,13 @@ test("planLibrary tells about a terms file and an ignore file that it cannot rea
 
 test("cleanItems writes titles, then filenames, then starts the lookups", async () => {
   const s = library();
-  const a = s.makeItem(1, { title: "Asthma in africa", shortTitle: "asthma in Africa" });
+  const a = s.makeItem(1, { title: "Asthma in africa", shortTitle: "Asthma in africa" });
   const b = s.makeItem(2, { title: "A delphi study", abstractNote: "the Delphi method" });
   const f = s.addFile(a, "other.pdf");
   s.addOrphan(50, { found: true });
   s.addOrphan(51, { found: true });
   const r = await cleanItems(s.Gam, [a, b], { name: "L", orphans: [s.items.get(50), s.items.get(51)],
-    confirm: async () => accept({ titles: [{ id: 1, to: "Asthma in Africa" }, { id: 2, to: "  A Delphi study of mine " }], files: [101], lookups: [50, 51] }) });
+    confirm: async () => accept({ titles: [{ id: 1, to: "Asthma in Africa" }, { id: 2, to: "  A Delphi study of mine " }], files: chosen(101), lookups: [50, 51] }) });
   await r.lookupsDone;
   assert.deepEqual(s.calls, [["save", 1], ["save", 2], ["rename", 101], ["lookup", [50, 51]], ["dialog"]]);
   assert.equal(a.stored.title, "Asthma in Africa");
@@ -367,7 +370,7 @@ test("a title or a filename that changed after the list was made is left", async
   const r = await cleanItems(s.Gam, [a, b], { name: "L", orphans: [], confirm: async () => {
     a.fields.title = "New";
     f.attachmentFilename = "mine.pdf";
-    return accept({ titles: [{ id: 1, to: "Asthma in Africa" }], files: [102] });
+    return accept({ titles: [{ id: 1, to: "Asthma in Africa" }], files: chosen(102) });
   } });
   assert.deepEqual(s.calls, []);
   assert.deepEqual(r.errors, [
@@ -385,7 +388,7 @@ test("an item or file that went to the trash after the list was made is left", a
   const r = await cleanItems(s.Gam, [a, b], { name: "L", orphans: [], confirm: async () => {
     a.isInTrash = () => true;
     f.isInTrash = () => true;
-    return accept({ titles: [{ id: 1, to: "Asthma in Africa" }], files: [102] });
+    return accept({ titles: [{ id: 1, to: "Asthma in Africa" }], files: chosen(102) });
   } });
   assert.deepEqual(s.calls, []);
   assert.equal(r.errors.length, 2);
@@ -409,7 +412,7 @@ test("one failed write does not stop the others; a file that keeps its name is a
   const gone = s.addFile(c, "three.pdf");
   const r = await cleanItems(s.Gam, [a, b, c], { name: "L", orphans: [], confirm: async () => {
     gone.path = false;
-    return accept({ titles: [{ id: 1, to: "Asthma in Africa" }, { id: 2, to: "Maps of Europe" }], files: [101, 102, 103] });
+    return accept({ titles: [{ id: 1, to: "Asthma in Africa" }, { id: 2, to: "Maps of Europe" }], files: [{ id: 101, to: "Doe - Asthma in africa.pdf" }, { id: 102, to: "Doe - Maps of Europe.pdf" }, ...chosen(103)] });
   } });
   assert.deepEqual([r.titles, r.files], [1, 1]);
   assert.equal(r.errors.length, 3);
@@ -536,4 +539,61 @@ test("the notice shows five problems at most; all are in the result", async () =
   assert.equal(r.errors.length, 8);
   assert.equal(s.notices.at(-1).split("\n").length, 7);
   assert.match(s.notices.at(-1), /3 more problems\.$/);
+});
+
+test("planLibrary gives the short title that goes with a new title, or an empty text", async () => {
+  const s = library();
+  const a = s.makeItem(1, { title: "Asthma in africa: a study", shortTitle: "Asthma in africa" });
+  const { titles: [row] } = await planLibrary(s.Gam, [a], { orphans: [] });
+  assert.equal(row.shortFor(row.to), "Asthma in Africa");
+  assert.equal(row.shortFor("Other words"), "");
+});
+
+test("an item without a title has no file row", async () => {
+  const s = library();
+  const a = s.makeItem(1, { title: "" });
+  s.addFile(a, "good-name.pdf");
+  assert.deepEqual((await planLibrary(s.Gam, [a], { orphans: [] })).files, []);
+});
+
+test("a file is not renamed to a name that was not shown", async () => {
+  const s = library();
+  const a = s.makeItem(1, { title: "Asthma in africa" });
+  const f = s.addFile(a, "other.pdf");
+  const r = await cleanItems(s.Gam, [a], { name: "L", orphans: [], confirm: async () => {
+    a.fields.title = "New metadata";
+    return accept({ titles: [{ id: 1, to: "Asthma in Africa" }], files: chosen(101) });
+  } });
+  assert.deepEqual(s.calls, []);
+  assert.equal(f.attachmentFilename, "other.pdf");
+  assert.match(r.errors[1], /"other\.pdf".*not the one that was shown/);
+});
+
+test("a failed save loads the item again", async () => {
+  const s = setup();
+  const item = s.makeItem(1, { title: "A title." });
+  item.saveTx = async () => { throw new Error("locked"); };
+  const reloads = [];
+  item.reload = async (types, all) => { reloads.push([types, all]); throw new Error("reload"); };
+  await assert.rejects(writeTitle(s.Gam, item, "A title.", "A title"), /locked/);
+  assert.deepEqual(reloads, [[["itemData"], true]]);
+  item.setField = () => { throw new Error("erased"); };
+  await assert.rejects(writeTitle(s.Gam, item, "A title.", "B"), /erased/);
+});
+
+test("items that cannot be checked are counted in the window", async () => {
+  const s = library();
+  const a = s.makeItem(1, { title: "Right" });
+  a.numAttachments = () => { throw new Error("broken"); };
+  const p = await planLibrary(s.Gam, [a], { orphans: [] });
+  assert.deepEqual(p.errors, ["gam could not check 1 item (see the Zotero error log)."]);
+});
+
+test("Create parent stops when the file is not the only selected one", async () => {
+  const s = library();
+  const o = s.addOrphan(50);
+  s.pane.getSelectedItems = () => [o, { id: 51 }];
+  await cleanItems(s.Gam, [], { name: "L", orphans: [o], confirm: async () => accept({ createParent: 50 }) });
+  assert.deepEqual(s.calls, []);
+  assert.match(s.notices.at(-1), /Create Parent Item/);
 });

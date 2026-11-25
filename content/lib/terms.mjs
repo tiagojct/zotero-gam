@@ -35,7 +35,7 @@ const BUILTIN = {
     January, February, April, June, July, September, October, November, December,
     Alzheimer, Parkinson, Crohn, Hodgkin, Huntington, Sjögren, Raynaud, Tourette, Asperger, Kawasaki disease,
     Down syndrome, Turner syndrome, Marfan, Bayesian, Bayes, Gaussian, Markov, Monte Carlo, Kaplan-Meier,
-    Kaplan–Meier, Cochrane, Likert, Nobel, Declaration of Helsinki, Black Death,
+    Kaplan–Meier, Cochrane, Likert, Nobel, Declaration of Helsinki, COVID-19, COVID,
     Christian, Christianity, Jewish, Judaism, Muslim, Islam, Islamic, Buddhist, Buddhism, Hindu, Hinduism,
     American Thoracic Society, European Respiratory Society, European Academy of Allergy and Clinical Immunology,
     American Academy of Allergy Asthma and Immunology, British Thoracic Society, Global Initiative for Asthma,

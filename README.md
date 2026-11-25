@@ -20,7 +20,7 @@ A gam is a meeting of two whaling ships at sea to exchange news.
 - Clean library: titles, filenames and files without a parent, in one window. Nothing in the library changes until you select Apply.
   - Tools > Clean library…: for the library selected in the left pane. Item menu > Clean…: for the selected items.
   - Titles: spaces, invisible characters, HTML tags and final punctuation; capitals for names (terms); sentence case for titles in Title Case or in capitals. You can edit each new title. When the short title is the start of the title, it changes too. Case changes are for English and Portuguese titles, by the words of the title.
-  - Title suggestions from the abstract: a word that always has a capital in the abstract, and that no abstract of the library has in lower case. They are not ticked at first, because some are wrong.
+  - Title suggestions: a word that always has a capital in the abstract, and that no abstract of the library has in lower case; short titles in capitals; footnote marks; tags without a pair. They are not ticked at first, because some are wrong.
   - Filenames: the main file of an item (PDF or EPUB) whose name is not the name of Zotero's template. Zotero does the rename. They are not ticked at first. Linked files do not change.
   - Files without a parent: retry Zotero's lookup, or open Create Parent Item.
   - Ignore takes a row away for as long as its title or filename stays the same.

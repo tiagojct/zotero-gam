@@ -1,7 +1,7 @@
 // The case of titles: sentence case for Title Case, and capitals for names.
 // Pure module: no Zotero or browser globals.
 
-import { segments, plainText } from "./title.mjs";
+import { segments, plainText, dropLooseTags } from "./title.mjs";
 
 // --- Language
 
@@ -92,9 +92,10 @@ function startsSentence(before) {
   return !/^(?:\p{L}|vs|al|St|Dr|No|Fig|eg|ie)$/u.test(last);
 }
 
-function isAllCaps(segs) {
+/** The number of words of a title in capitals, or 0 for another title. */
+function capsWords(segs) {
   const text = segs.filter((s) => !s.tag && !s.nocase).map((s) => s.text).join("");
-  return isUpper(letters(text)) && text.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length >= 3;
+  return isUpper(letters(text)) ? text.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length : 0;
 }
 
 const isAcronym = (w) => letters(w).length >= 2 && isUpper(letters(w));
@@ -184,24 +185,25 @@ function dropFootnote(title) {
 /**
  * The case that a title must have. lang: titleLanguage. terms: termsFor. known: names of the abstract.
  * Returns {title, reasons: ["title-case"] | ["terms"] | [], suggestion}. suggestion: title with the capitals
- * that only the abstract supports, and without a footnote mark; null when that is the same.
+ * that only the abstract supports, and without a footnote mark or a tag without a pair; a title of 3 to 5
+ * words in capitals (they can be acronyms) in sentence case. null when that is the same.
  */
 export function caseProposal({ title, lang, terms, names: known }) {
   if (!lang) return { title, reasons: [], suggestion: null };
   const segs = segments(title);
-  const allCaps = isAllCaps(segs);
-  let reason = "terms";
-  let changed;
-  if (allCaps || isTitleCase(titleWords(segs))) {
-    reason = "title-case";
-    changed = applyTerms(mapWords(segs, (w) => sentenceWord(w, allCaps, known)), terms, false);
-  } else {
-    changed = applyTerms(segs, terms, true);
+  const caps = capsWords(segs);
+  const sentence = () => applyTerms(mapWords(segs, (w) => sentenceWord(w, caps > 0, known)), terms, false);
+  if (caps >= 3 && caps <= 5) {
+    const s = dropFootnote(join(sentence()));
+    return { title, reasons: [], suggestion: s === title ? null : s };
   }
+  const toSentence = caps >= 3 || (!caps && isTitleCase(titleWords(segs)));
+  const reason = toSentence ? "title-case" : "terms";
+  const changed = toSentence ? sentence() : applyTerms(segs, terms, true);
   const next = join(changed);
-  const suggested = dropFootnote(join(mapWords(changed, (w) => {
+  const suggested = dropLooseTags(dropFootnote(join(mapWords(changed, (w) => {
     const fold = letters(w.text.replace(/['’].*$/, "")).toLowerCase();
     return !w.first && known.has(fold) && w.text === w.text.toLowerCase() ? capitalise(w.text) : w.text;
-  })));
+  }))));
   return { title: next, reasons: next === title ? [] : [reason], suggestion: suggested === next ? null : suggested };
 }

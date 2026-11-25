@@ -9,26 +9,53 @@ const tagRegExp = (names) => new RegExp(`<(/?)(${names})(${ATTRS})\\s*/?>`, "gi"
 const RICH = "i|b|sub|sup|span";
 // Tags that come with imported titles. A name that is not here (for example <String>) is text.
 const BLOCK = "p|br|div|li|ul|ol|h[1-6]|title|tr|td|jats:title|jats:p";
-const DROPPED = `${BLOCK}|a|em|strong|u|s|small|big|font|tt|code|jats:(?:italic|bold|sub|sup|sc)|mml:[a-z]+`;
+const DROPPED = `${BLOCK}|a|em|strong|u|s|small|big|font|tt|code|scp|inline-formula|tex-math|alternatives|`
+  + "jats:(?:italic|bold|sub|sup|sc)|mml:[a-z]+";
 
 const isBlock = new RegExp(`^(?:${BLOCK})$`, "i");
 const isRich = new RegExp(`^(?:${RICH})$`, "i");
 const isNocase = (attrs) => /\bclass\s*=\s*["']?nocase["']?/i.test(attrs);
 const isSmallCaps = (attrs) => /\bstyle\s*=\s*["']?[^"']*small-caps/i.test(attrs);
 
-const ENTITIES = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", nbsp: "\u00a0" };
+// The entities that gam knows. Others stay as they are.
+const ENTITIES = new Map(Object.entries({
+  amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", nbsp: " ", ndash: "–", mdash: "—", lsquo: "‘", rsquo: "’",
+  ldquo: "“", rdquo: "”", hellip: "…", reg: "®", copy: "©", trade: "™", deg: "°", plusmn: "±", times: "×", micro: "µ",
+  middot: "·", laquo: "«", raquo: "»", le: "≤", ge: "≥", szlig: "ß", ordf: "ª", ordm: "º",
+  aelig: "æ", AElig: "Æ", oslash: "ø", Oslash: "Ø", aring: "å", Aring: "Å", eth: "ð", ETH: "Ð", thorn: "þ", THORN: "Þ",
+}));
+"alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega".split(" ")
+  .forEach((name, i) => {
+    // U+03C2 (final sigma) is between rho and sigma.
+    const code = 0x3b1 + i + (i >= 17 ? 1 : 0);
+    ENTITIES.set(name, String.fromCharCode(code));
+    ENTITIES.set(name[0].toUpperCase() + name.slice(1), String.fromCharCode(code - 32));
+  });
+for (const [mark, letters] of [["grave", "aeiou"], ["acute", "aeiouy"], ["circ", "aeiou"], ["tilde", "ano"], ["uml", "aeiouy"], ["cedil", "c"], ["caron", "s"]]) {
+  const combining = { grave: "̀", acute: "́", circ: "̂", tilde: "̃", uml: "̈", cedil: "̧", caron: "̌" }[mark];
+  for (const c of letters) {
+    ENTITIES.set(c + mark, (c + combining).normalize("NFC"));
+    ENTITIES.set(c.toUpperCase() + mark, (c.toUpperCase() + combining).normalize("NFC"));
+  }
+}
+// Numeric entities 128 to 159 are windows-1252, as in HTML (&#150; is a dash).
+const CP1252 = "€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008dŽ\u008f\u0090‘’“”•–—˜™š›œ\u009džŸ";
 
 function decode(text) {
-  return text.replace(/&(?:#(\d{1,7})|#x([0-9a-f]{1,6})|(amp|lt|gt|quot|apos|nbsp));/gi, (all, dec, hex, name) => {
-    if (name) return ENTITIES[name.toLowerCase()];
-    const code = dec ? parseInt(dec, 10) : parseInt(hex, 16);
-    const valid = code >= 32 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff);
+  return text.replace(/&(?:#(\d{1,7})|#x([0-9a-f]{1,6})|([a-z]{2,8}));/gi, (all, dec, hex, name) => {
+    if (name) return ENTITIES.get(name) ?? all;
+    let code = dec ? parseInt(dec, 10) : parseInt(hex, 16);
+    if (code >= 128 && code <= 159) code = CP1252.codePointAt(code - 128);
+    const valid = code >= 32 && code <= 0x10ffff && !(code >= 127 && code <= 159) && !(code >= 0xd800 && code <= 0xdfff);
     return valid ? String.fromCodePoint(code) : all;
   });
 }
 
-/** Remove the tags that Zotero does not use, and the ones that have no pair. */
-function cleanTags(title) {
+/**
+ * Remove the tags that Zotero does not use. Text can look like a tag ("<a> and <u> in English"), so a tag
+ * goes only with its pair, or as a block tag at the start or end of the title. loose: also without a pair.
+ */
+function cleanTags(title, loose) {
   const parts = [];
   const open = [];
   let last = 0;
@@ -36,23 +63,33 @@ function cleanTags(title) {
     parts.push({ text: title.slice(last, m.index) });
     last = m.index + m[0].length;
     const [, close, name, attrs] = m;
-    const part = { text: m[0], tag: true, keep: false, block: isBlock.test(name) };
-    parts.push(part);
-    if (!isRich.test(name)) continue;
     const lower = name.toLowerCase();
+    const block = isBlock.test(lower);
+    const part = { text: m[0], tag: true, drop: loose, block };
+    parts.push(part);
+    if (block && !close && /^\S/.test(title.slice(last)) && !title.slice(0, m.index).trim()) part.drop = true;
+    if (block && close && /\S$/.test(title.slice(0, m.index)) && !title.slice(last).trim()) part.drop = true;
     if (!close) {
-      const allowed = lower === "span" ? isNocase(attrs) || isSmallCaps(attrs) : !attrs;
-      open.push({ name: lower, part, allowed });
+      const keep = lower === "span" ? isNocase(attrs) || isSmallCaps(attrs) : isRich.test(lower) && !attrs;
+      open.push({ name: lower, part, keep });
       continue;
     }
     const at = open.findLastIndex((o) => o.name === lower);
     if (at < 0) continue;
-    // Tags that are still open inside this pair have no pair: they go.
+    // Tags that are still open inside this pair have no pair.
     const [start] = open.splice(at);
-    if (start.allowed) start.part.keep = part.keep = true;
+    start.part.drop = part.drop = !start.keep;
   }
   parts.push({ text: title.slice(last) });
-  return parts.map((p) => (!p.tag || p.keep ? p.text : p.block ? " " : "")).join("");
+  return parts.map((p) => (!p.tag || !p.drop ? p.text : p.block ? " " : "")).join("");
+}
+
+const oneSpace = (text) => text.replace(/\s+/g, " ").trim();
+
+/** The title without the tags that have no pair. It can take away text that looks like a tag: only for the window. */
+export function dropLooseTags(title) {
+  const t = oneSpace(cleanTags(title, true));
+  return /[\p{L}\p{N}]/u.test(t) ? t : title;
 }
 
 /** The title as parts: [{text, tag, nocase}]. nocase: text that Zotero must not change the case of. */
@@ -81,25 +118,51 @@ export function plainText(title) {
   return segments(title).filter((s) => !s.tag).map((s) => s.text).join("");
 }
 
-// A final dot that belongs to the last word: an abbreviation, initials, or an ellipsis.
-const KEEP_DOT = /(?:\bet al|\betc|\b(?:Inc|Ltd|Corp|Co|Jr|Sr)|(?:^|[\s.(-])\p{Lu}|\.\.)\.$/u;
+// Words that end with a dot.
+const ABBREVIATION = new RegExp("(?:^|[^\\p{L}\\p{N}])(?:al|etc|cf|viz|sp|spp|subsp|var|vs|ca|ed|eds|vol|no|nos|pp|approx|"
+  + "dept|univ|inc|ltd|lda|corp|co|bros|jr|sr|st|dr|mr|mrs|ms|prof)\\.$", "iu");
 
-function dropFinalPunctuation(text) {
-  let t = text.trimEnd();
-  while (/[.:;,]$/.test(t) && !KEEP_DOT.test(t)) t = t.slice(0, -1).trimEnd();
-  return t;
+/** True when the final dot of text belongs to its last word: an abbreviation, initials, or an ellipsis. */
+function keepDot(text) {
+  if (/\.\s?\.\s?\.$/.test(text) || /\.\s\.$/.test(text)) return true;
+  return ABBREVIATION.test(text) || /(?:^|[^\p{L}\p{N}])\p{Lu}\.$/u.test(text) || /\.\p{L}\S*\.$/u.test(text);
 }
 
-/** The title with the fixes that are always safe. It never makes a title empty. */
+/** True when the last character of text can go: final punctuation that is not part of a word or an entity. */
+function endsLoose(text) {
+  return /[.:;,]$/.test(text) && !keepDot(text) && !/&#?\w+;$/.test(text);
+}
+
+function dropFinalPunctuation(title) {
+  const parts = segments(title);
+  const texts = parts.filter((p) => !p.tag);
+  const plain = () => texts.map((p) => p.text).join("").trimEnd();
+  while (endsLoose(plain()) && /[\p{L}\p{N}]/u.test(plain())) {
+    const end = texts.findLast((p) => p.text.trim());
+    end.text = end.text.trimEnd().slice(0, -1).trimEnd();
+  }
+  return parts.map((p) => p.text).join("").trim();
+}
+
+function fixOnce(title) {
+  const t = cleanTags(title, false).normalize("NFC").replace(/[­​⁠﻿]/g, "");
+  return dropFinalPunctuation(oneSpace(t));
+}
+
+// What a fix must not change: the letters and digits, without what looks like a tag.
+const core = (text) => text.normalize("NFC").replace(/<[^<>]*>/g, "").replace(/[^\p{L}\p{N}]/gu, "");
+
+/**
+ * The title with the fixes that are always safe. It never makes a title empty, and never takes away a
+ * letter or a digit.
+ */
 export function safeFix(title) {
   const original = String(title ?? "").normalize("NFC");
-  let t = cleanTags(decode(original))
-    .replace(/[\u00ad\u200b\u2060\ufeff]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-  const parts = segments(t);
-  const end = parts.findLastIndex((p) => !p.tag);
-  if (end >= 0) parts[end].text = dropFinalPunctuation(parts[end].text) || parts[end].text;
-  t = parts.map((p) => p.text).join("").trim();
-  return /[\p{L}\p{N}]/u.test(plainText(t)) ? t : original.trim();
+  const decoded = decode(original);
+  let t = decoded;
+  for (let before = null; before !== t;) {
+    before = t;
+    t = fixOnce(t);
+  }
+  return /[\p{L}\p{N}]/u.test(plainText(t)) && core(t) === core(decoded) ? t : original.trim();
 }

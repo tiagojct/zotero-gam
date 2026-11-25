@@ -96,8 +96,12 @@ Case proposals (preview only):
   term in each line with its exact case, "#" for comments, "en:" or "pt:" before a term limits it to
   a language. The file of the user wins. gam reads it again when it changes, and never writes it.
   Longest term first; whole words; case ignored in the match.
-- shortTitle: when it is the start of the old title (case ignored), it becomes the same start of the
-  new title. Else it does not change (call).
+- shortTitle: when it is the start of the old title (case ignored), the words that changed in the title
+  change in it too. Else it does not change (call). The window shows the new short title.
+  (Review, 2026-11-25: the whole start was a case change that the user did not see.)
+- Review, 2026-11-25: a tag goes automatically only with its pair, or as a block tag at the start or end
+  (text can look like a tag). A fix never takes away a letter or a digit. Tags without a pair, and
+  titles of 3 to 5 words in capitals (they can be acronyms), are suggestions.
 
 New items: the add events are collected for 2 s, as for automatic keys. At most 20 items in a batch;
 more gives one notice and no write (call). A title with a case change from terms or Title Case that remains after the safe
@@ -139,7 +143,7 @@ style of the preview dialog, sections only when they have rows.
         was: Recommendations for a ... american thoracic society
         terms                                              Ignore
 
-    Title suggestions from the abstract (31)           [Select all]
+    Title suggestions (31)                             [Select all]
     [ ] [ Key digital health ... a Delphi study                ]
         was: Key digital health ... a delphi study         Ignore
     [Ignore all that are not ticked]
