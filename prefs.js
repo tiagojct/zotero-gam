@@ -8,3 +8,6 @@ pref("extensions.gam.autoKey", false);
 pref("extensions.gam.cleanNew", false);
 pref("extensions.gam.orphanNotice", false);
 pref("extensions.gam.termsFile", "");
+pref("extensions.gam.importOn", false);
+pref("extensions.gam.importFolder", "");
+pref("extensions.gam.importDone", "");

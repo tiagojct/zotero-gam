@@ -1,6 +1,7 @@
 // IOUtils and PathUtils for Node tests, on top of the real file system.
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 
 const err = (name, message) => Object.assign(new Error(message), { name });
 
@@ -26,6 +27,17 @@ export function installFakeIO() {
     },
     async exists(p) {
       return fs.existsSync(p);
+    },
+    async read(p, { maxBytes } = {}) {
+      const b = fs.readFileSync(p);
+      return new Uint8Array(maxBytes ? b.subarray(0, maxBytes) : b);
+    },
+    async computeHexDigest(p, method) {
+      return crypto.createHash(method).update(fs.readFileSync(p)).digest("hex");
+    },
+    async move(from, to, { noOverwrite = false } = {}) {
+      if (noOverwrite && fs.existsSync(to)) throw err("NoModificationAllowedError", `${to} exists`);
+      fs.renameSync(from, to);
     },
     async makeDirectory(p) {
       fs.mkdirSync(p, { recursive: true });

@@ -28,6 +28,7 @@ A gam is a meeting of two whaling ships at sea to exchange news.
   - Tell me about files without a parent (setting, off by default): a notice when Zotero does not identify a new PDF or EPUB.
   - Turn off other plugins that change titles (for example Linter) before you turn on the first setting.
   - gam does not change the title in a literature note when the title in Zotero changes.
+- Import folder (setting, off by default): adds the PDF and EPUB files of a folder to My Library, and moves each file to another folder after it. See Preferences.
 - Context menu of items: Open note in Obsidian, Create note, Add Zotero link to note, Assign citation keys…, Clean…, Copy [[citekey]], Copy [@citekey] (a Pandoc citation; a key with characters that Pandoc would cut short is written as `[@{key}]`).
 - Context menu of collections: Create notes for collection.
 - Tools menu: Citation keys…, Clean library…, Refresh gam index.
@@ -58,6 +59,9 @@ Zotero Settings > gam:
 | Clean the titles of new items | off |
 | Tell me about files without a parent | off |
 | Terms file | empty (only the terms of gam) |
+| Import the PDF and EPUB files of a folder | off |
+| Import folder | empty: set it before first use |
+| Move imported files to | empty (the subfolder "imported") |
 
 - The vault folder must contain the `.obsidian` folder.
 - The literature folder is a folder inside the vault. It cannot be hidden or contain "..".
@@ -65,6 +69,7 @@ Zotero Settings > gam:
 - gam reads the vault again when you return to the Zotero window (at most once each 30 seconds) and one second after a setting changes. It reads only the files that changed. Tools > Refresh gam index reads all files again.
 
 - The terms file is a text file with one term in each line, with its exact case (for example `Delphi`). "#" starts a comment, and "en:" or "pt:" before a term limits it to one language. A term of the file wins over a term of gam that differs only in case. gam only reads it.
+- The import folder: while Zotero is open, gam reads it each 30 seconds (not its subfolders) and adds a file to My Library when the file did not change between two reads. Zotero looks up the parent item and gives the name, as its own settings say. Then gam moves the file to the other folder; it never deletes or overwrites one. A file with the same content as one in the library (not in the trash) is only moved. A file that cannot be imported stays, with one notice. The folder cannot be the home folder, in the vault or in the Zotero data folder. Use one computer for a folder that syncs (for example in iCloud Drive), or both can import the same file.
 - Clean library keeps two files in the Zotero data folder: gam-ignored.json (the ignored rows) and gam-clean.jsonl (each change, with the old and the new value).
 
 ## Development

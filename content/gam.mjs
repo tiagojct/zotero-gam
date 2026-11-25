@@ -4,7 +4,7 @@
 import { buildIndex, isCached } from "./lib/index.mjs";
 import { currentKey } from "./lib/citekey.mjs";
 import { parseUris } from "./lib/obsidian.mjs";
-import { expandHome, checkLiteratureFolder } from "./lib/paths.mjs";
+import { expandHome, checkLiteratureFolder, checkImportFolders } from "./lib/paths.mjs";
 import { columnSignature, isNoteEvent } from "./lib/state.mjs";
 import { makeRefresher, makeDebounce } from "./lib/refresher.mjs";
 import { registerColumn } from "./ui/column.mjs";
@@ -16,6 +16,7 @@ import { readAllKeys, checkKeyChanges, autoKeys } from "./keys.mjs";
 import { autoTitles, cleanItems } from "./clean.mjs";
 import { makeNewItems } from "./new-items.mjs";
 import { makeOrphanWatch } from "./orphans.mjs";
+import { makeFolderImport } from "./import-folder.mjs";
 import { listMarkdown, checkVault, realFolderCase } from "./vault.mjs";
 import { registerEndpoints } from "./server.mjs";
 
@@ -40,6 +41,7 @@ let settingsChanged = null;
 let linksTimer = null;
 let newItems = null;
 let orphanWatch = null;
+let folderImport = null;
 const logged = new Set();
 const focusHandlers = new Map();
 let knownNoteIDs = new Set();
@@ -53,6 +55,11 @@ function pref(name) {
   return Zotero.Prefs.get(PREF + name, true);
 }
 
+/** A folder setting with the home folder, or "" when it is empty. */
+function folderPref(name) {
+  const value = String(pref(name) || "").trim();
+  return value ? expandHome(value, homeDir) : "";
+}
 
 export const Gam = {
   id: null,
@@ -80,6 +87,9 @@ export const Gam = {
     cleanNew: () => pref("cleanNew") === true,
     orphanNotice: () => pref("orphanNotice") === true,
     termsFile: () => String(pref("termsFile") || "").trim(),
+    importOn: () => pref("importOn") === true,
+    importFolder: () => folderPref("importFolder"),
+    importDone: () => folderPref("importDone"),
   },
 
   get Zotero() {
@@ -136,6 +146,18 @@ export const Gam = {
       setTimeout,
       clearTimeout,
     });
+    folderImport = makeFolderImport({
+      Zotero,
+      enabled: () => this.prefs.importOn(),
+      folder: () => this.prefs.importFolder(),
+      done: () => this.prefs.importDone(),
+      check: (folder, done) => checkImportFolders(folder, done,
+        { home: homeDir, vault: this.prefs.vault(), dataDir: Zotero.DataDirectory.dir }),
+      notify: (text, ok) => notify(Zotero, text, ok),
+      setTimeout,
+      clearTimeout,
+    });
+    folderImport.start();
     notifierID = Zotero.Notifier.registerObserver({
       notify: (event, type, ids) => {
         if (isNoteEvent(event, ids, (id) => Zotero.Items.get(id), knownNoteIDs)) this.scheduleLinks();
@@ -171,6 +193,8 @@ export const Gam = {
     }, SETTINGS_DELAY_MS, { setTimeout, clearTimeout });
     prefObservers = ["vault", "vaultName", "literatureFolder", "exclude"].map((name) =>
       Zotero.Prefs.registerObserver(PREF + name, () => settingsChanged?.call(), true));
+    prefObservers.push(...["importOn", "importFolder", "importDone"].map((name) =>
+      Zotero.Prefs.registerObserver(PREF + name, () => folderImport?.changed(), true)));
     // On ADDON_ENABLE the main window is already open, and Zotero does not call onMainWindowLoad for it.
     for (const win of Zotero.getMainWindows()) {
       if (win.ZoteroPane) this.onMainWindowLoad(win);
@@ -203,6 +227,8 @@ export const Gam = {
     newItems = null;
     orphanWatch?.stop();
     orphanWatch = null;
+    folderImport?.stop();
+    folderImport = null;
     // An update without a restart keeps this module loaded: free the index and the links.
     this.state = { index: null, error: null, links: new Map(), literatureFolder: null, keys: null, keysTouched: null };
     indexCache.clear();

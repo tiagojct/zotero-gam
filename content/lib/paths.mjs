@@ -39,3 +39,21 @@ export function matchName(names, name) {
   const same = names.filter((n) => key(n) === key(name));
   return same.length === 1 ? same[0] : null;
 }
+
+/**
+ * null when gam can import from folder and move the files to done, else the message for the user.
+ * home, vault ("" for none) and dataDir: the folders that gam does not import from or move to.
+ */
+export function checkImportFolders(folder, done, { home, vault, dataDir }) {
+  const key = (p) => `${joinPath(p).normalize("NFC").toLowerCase()}/`;
+  const meet = (a, b) => key(a).startsWith(key(b)) || key(b).startsWith(key(a));
+  const full = (p) => p.startsWith("/") && !p.split("/").includes("..");
+  for (const p of [folder, done]) {
+    if (!full(p)) return `Import folder: write the full path (it starts with "/" or "~/", without ".."): ${p}`;
+    if (key(home).startsWith(key(p))) return `Import folder: the home folder, or a folder that holds it, is not possible: ${p}`;
+    if (vault && meet(p, vault)) return `Import folder: not in the vault, and not a folder that holds it: ${p}`;
+    if (meet(p, dataDir)) return `Import folder: not in the Zotero data folder, and not a folder that holds it: ${p}`;
+  }
+  if (key(folder) === key(done)) return `Import folder: choose another folder for the imported files: ${done}`;
+  return null;
+}
