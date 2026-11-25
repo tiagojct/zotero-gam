@@ -31,7 +31,16 @@ export function installFakeIO() {
       fs.mkdirSync(p, { recursive: true });
     },
     async writeUTF8(p, text, opts = {}) {
-      if (opts.tmpPath) throw err("NotSupported", "the fake does not support tmpPath");
+      // With tmpPath, the real IOUtils writes there first and then moves the file (an atomic write).
+      if (opts.tmpPath) {
+        fs.writeFileSync(opts.tmpPath, text);
+        fs.renameSync(opts.tmpPath, p);
+        return;
+      }
+      if (opts.mode === "appendOrCreate") {
+        fs.appendFileSync(p, text);
+        return;
+      }
       try {
         fs.writeFileSync(p, text, { flag: opts.mode === "create" ? "wx" : "w" });
       } catch (e) {
