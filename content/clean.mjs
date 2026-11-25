@@ -30,7 +30,7 @@ function field(item, name) {
 }
 
 /** True for a regular item that gam can clean. */
-function canClean(item) {
+export function canClean(item) {
   return !!item?.isRegularItem?.() && canChange(item) && item.library?.libraryType !== "feed";
 }
 
@@ -128,7 +128,7 @@ async function autoTitlesNow(Gam, ids) {
 /** True for a PDF or EPUB without a parent item that gam can change. */
 export function isOrphan(Zotero, item) {
   return !!item && !item.isRegularItem?.() && canChange(item) && item.library?.libraryType !== "feed"
-    && !!Zotero.RecognizeDocument.canRecognize(item);
+    && !!Zotero.RecognizeDocument?.canRecognize(item);
 }
 
 /** The name that Zotero's template gives a file of parent (an item, or a copy with another title). */

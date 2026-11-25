@@ -78,3 +78,59 @@ test("the Tools menu has Citation keys", () => {
   assert.ok(s.find("gam-tools", "gam-menu-keys-library"));
   assert.equal(s.menus["gam-tools"].target, "main/menubar/tools");
 });
+
+// --- Clean library
+
+function cleanSetup({ type = "user", editable = true, selected = [1] } = {}) {
+  const s = setup();
+  const notices = [];
+  const ran = [];
+  const Z = s.Gam.Zotero;
+  const lib = { name: "My Library", libraryType: type, editable };
+  const paper = { id: 1, isRegularItem: () => true, isEditable: () => editable, library: lib };
+  const orphan = { id: 2, isRegularItem: () => false, isEditable: () => editable, library: lib, pdf: true };
+  const child = { id: 3, isRegularItem: () => false, isEditable: () => editable, library: lib, pdf: false };
+  Object.assign(Z, {
+    RecognizeDocument: { canRecognize: (i) => !!i.pdf },
+    getActiveZoteroPane: () => ({ getSelectedLibraryIDs: () => selected }),
+    Libraries: { userLibraryID: 1, get: () => lib },
+    Items: { getAll: async () => [paper, orphan, child] },
+    logError: (e) => { throw e; },
+    ProgressWindow: class { changeHeadline() {} addDescription(t) { notices.push(t); } show() {} startCloseTimer() {} },
+  });
+  s.Gam.actions = { clean: async (items, opts) => ran.push([items.map((i) => i.id), opts.name, opts.orphans.map((i) => i.id)]) };
+  return { ...s, notices, ran, paper, orphan, child };
+}
+const settle = () => new Promise((r) => setTimeout(r, 5));
+
+test("Tools > Clean library cleans the selected library: its items and its files without a parent", async () => {
+  const s = cleanSetup();
+  s.find("gam-tools", "gam-menu-clean-library").onCommand();
+  await settle();
+  assert.deepEqual(s.ran, [[[1], "My Library", [2]]]);
+});
+
+test("Clean library refuses two libraries, a feed and a read-only library", async () => {
+  for (const [o, re] of [[{ selected: [1, 2] }, /one library/], [{ type: "feed" }, /feed/], [{ editable: false }, /read-only/]]) {
+    const s = cleanSetup(o);
+    s.find("gam-tools", "gam-menu-clean-library").onCommand();
+    await settle();
+    assert.deepEqual(s.ran, []);
+    assert.match(s.notices.join(" "), re);
+  }
+});
+
+test("the item menu has Clean for items and files without a parent that gam can change", async () => {
+  const s = cleanSetup();
+  const entry = s.find("gam-item", "gam-menu-clean");
+  assert.equal(visible(entry, { items: [s.paper] }), true);
+  assert.equal(visible(entry, { items: [s.orphan] }), true);
+  assert.equal(visible(entry, { items: [s.child] }), false);
+  assert.equal(visible(entry, { items: [] }), false);
+  assert.equal(visible(entry, { items: [cleanSetup({ editable: false }).paper] }), false);
+  assert.equal(visible(entry, { items: [cleanSetup({ type: "feed" }).paper] }), false);
+  entry.onCommand({}, { items: [s.paper, s.orphan, s.child] });
+  entry.onCommand({}, { items: [s.paper] });
+  await settle();
+  assert.deepEqual(s.ran, [[[1], "selected items", [2]], [[1], "selected item", []]]);
+});

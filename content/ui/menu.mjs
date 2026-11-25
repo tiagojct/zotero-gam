@@ -5,6 +5,7 @@ import { createNotes, linkNotes, collectionItems, createNotesForCollection, noti
 import { wikilink, pandocCite } from "../lib/copy.mjs";
 import { confirmNotes, confirmKeys } from "./preview-dialog.mjs";
 import { assignKeys } from "../keys.mjs";
+import { canClean, isOrphan } from "../clean.mjs";
 
 export function registerMenus(Gam) {
   const Zotero = Gam.Zotero;
@@ -15,6 +16,23 @@ export function registerMenus(Gam) {
       Zotero.logError(e);
       notify(Zotero, e.message || String(e), false);
     });
+
+  const runClean = (items, name) => Gam.actions.clean(items.filter(canClean), {
+    name, orphans: items.filter((i) => isOrphan(Zotero, i)),
+  });
+  const report = (e) => {
+    Zotero.logError(e);
+    notify(Zotero, e.message || String(e), false);
+  };
+  // The library that is selected in the left pane, or null (with a notice) when there is more than one.
+  const selectedLibraryID = (command) => {
+    const selected = Zotero.getActiveZoteroPane()?.getSelectedLibraryIDs?.() || [];
+    if (selected.length > 1) {
+      notify(Zotero, `Select one library in the left pane, then choose ${command} again.`, false);
+      return null;
+    }
+    return selected[0] || Zotero.Libraries.userLibraryID;
+  };
 
   const itemMenu = Zotero.MenuManager.registerMenu({
     menuID: "gam-item",
@@ -66,6 +84,17 @@ export function registerMenus(Gam) {
         onCommand: (ev, ctx) => {
           const items = needKey(ctx);
           if (items.length) runKeys(items, items.length === 1 ? "selected item" : "selected items");
+        },
+      },
+      {
+        menuType: "menuitem",
+        l10nID: "gam-menu-clean",
+        onShowing: (ev, ctx) => {
+          ctx.setVisible((ctx.items || []).some((i) => canClean(i) || isOrphan(Zotero, i)));
+        },
+        onCommand: (ev, ctx) => {
+          const items = ctx.items || [];
+          (async () => runClean(items, items.length === 1 ? "selected item" : "selected items"))().catch(report);
         },
       },
       {
@@ -157,18 +186,31 @@ export function registerMenus(Gam) {
         // All items of the library that is selected in the left pane.
         onCommand: () => {
           (async () => {
-            const selected = Zotero.getActiveZoteroPane()?.getSelectedLibraryIDs?.() || [];
-            if (selected.length > 1) {
-              notify(Zotero, "Select one library in the left pane, then choose Citation keys again.", false);
-              return;
-            }
-            const libraryID = selected[0] || Zotero.Libraries.userLibraryID;
+            const libraryID = selectedLibraryID("Citation keys");
+            if (!libraryID) return;
             const items = (await Zotero.Items.getAll(libraryID, true, false)).filter((i) => i.isRegularItem());
             await runKeys(items, Zotero.Libraries.get(libraryID)?.name || "library");
-          })().catch((e) => {
-            Zotero.logError(e);
-            notify(Zotero, e.message || String(e), false);
-          });
+          })().catch(report);
+        },
+      },
+      {
+        menuType: "menuitem",
+        l10nID: "gam-menu-clean-library",
+        onCommand: () => {
+          (async () => {
+            const libraryID = selectedLibraryID("Clean library");
+            if (!libraryID) return;
+            const library = Zotero.Libraries.get(libraryID);
+            if (library?.libraryType === "feed") {
+              notify(Zotero, "Clean library does not work on a feed.", false);
+              return;
+            }
+            if (!library?.editable) {
+              notify(Zotero, "Clean library does not work on a read-only library.", false);
+              return;
+            }
+            await runClean(await Zotero.Items.getAll(libraryID, true, false), library.name || "library");
+          })().catch(report);
         },
       },
     ],

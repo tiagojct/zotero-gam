@@ -10,9 +10,10 @@ import { makeRefresher, makeDebounce } from "./lib/refresher.mjs";
 import { registerColumn } from "./ui/column.mjs";
 import { registerPane } from "./ui/pane.mjs";
 import { registerMenus } from "./ui/menu.mjs";
+import { confirmClean } from "./ui/clean-dialog.mjs";
 import { createNote, linkNote, notify } from "./create.mjs";
 import { readAllKeys, checkKeyChanges, autoKeys } from "./keys.mjs";
-import { autoTitles } from "./clean.mjs";
+import { autoTitles, cleanItems } from "./clean.mjs";
 import { makeNewItems } from "./new-items.mjs";
 import { listMarkdown, checkVault, realFolderCase } from "./vault.mjs";
 import { registerEndpoints } from "./server.mjs";
@@ -63,7 +64,7 @@ export const Gam = {
   onRefresh: [],
   // Functions called in shutdown() (for example, to unregister the column).
   cleanups: [],
-  // Actions that Task 8 adds (createNote).
+  // Actions that startup() adds (createNote, linkNote, clean).
   actions: {},
 
   prefs: {
@@ -142,6 +143,9 @@ export const Gam = {
     });
     this.actions.linkNote = (item) => linkNote(this, item).catch((e) => {
       notify(Zotero, e.message || String(e), false);
+    });
+    this.actions.clean = (items, opts) => cleanItems(this, items, {
+      ...opts, confirm: async (plan) => confirmClean(this, plan, opts.name),
     });
     registerColumn(this);
     registerPane(this);
