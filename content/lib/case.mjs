@@ -81,8 +81,9 @@ const capitalise = (w) => w.charAt(0).toUpperCase() + w.slice(1);
 // A word; an apostrophe stays in the word ("Bloom's").
 const WORD = /[\p{L}\p{N}][\p{L}\p{M}\p{N}]*(?:['’][\p{L}\p{N}]+)*/gu;
 
-/** The words of the title that can change: [{seg, start, text, first, before, formula}].
- * first: starts a sentence. formula: a symbol before a superscript or subscript ("Ca" of Ca<sup>2+</sup>). */
+/** The words of the title that can change: [{seg, start, text, first, before, formula, initial}].
+ * first: starts a sentence. formula: a symbol before a superscript or subscript ("Ca" of Ca<sup>2+</sup>).
+ * initial: a dot follows ("A. niger"). */
 function titleWords(segs) {
   const out = [];
   let plain = "";
@@ -93,7 +94,8 @@ function titleWords(segs) {
     for (const m of seg.text.matchAll(WORD)) {
       const before = plain + seg.text.slice(0, m.index);
       const formula = script && m[0].length <= 2 && m.index + m[0].length === seg.text.length;
-      out.push({ seg, start: m.index, text: m[0], first: startsSentence(before), before, formula, nocase: seg.nocase });
+      out.push({ seg, start: m.index, text: m[0], first: startsSentence(before), before, formula, nocase: seg.nocase,
+        initial: seg.text[m.index + m[0].length] === "." });
     }
     plain += seg.text;
   }
@@ -128,7 +130,7 @@ function isTitleCase(words) {
 const LETTERED = /(?:hepatitis|vitamin|type|group|influenza|protein|factor|class|phase)\s+$/i;
 
 /** The word in sentence case. */
-function sentenceWord({ text, first, before, formula }, allCaps, known, inCapitals) {
+function sentenceWord({ text, first, before, formula, initial }, allCaps, known, inCapitals) {
   const name = known.has(letters(text.replace(/['’].*$/, "")).toLowerCase());
   if (allCaps) {
     const low = text.toLowerCase();
@@ -136,7 +138,7 @@ function sentenceWord({ text, first, before, formula }, allCaps, known, inCapita
     return first || name ? capitalise(low) : low;
   }
   if (first || name || formula) return text;
-  if (text === "A") return LETTERED.test(before) ? text : "a";
+  if (text === "A" && !initial) return LETTERED.test(before) ? text : "a";
   if (letters(text).length === 1 || /\p{N}/u.test(text) || /.\p{Lu}/u.test(text)) return text;
   return text.toLowerCase();
 }
