@@ -135,14 +135,13 @@ function renderCitedIn(Gam, { doc, body, item }) {
 
 export function registerPane(Gam) {
   const Zotero = Gam.Zotero;
-  const icon = Gam.rootURI + "content/icons/gam.svg";
   // Every shown section (library and reader panes), by body element.
   const shown = new Map();
   const paneID = Zotero.ItemPaneManager.registerSection({
     paneID: PANE_ID,
     pluginID: Gam.id,
-    header: { l10nID: "gam-pane-header", icon },
-    sidenav: { l10nID: "gam-pane-sidenav", icon },
+    header: { l10nID: "gam-pane-header", icon: Gam.rootURI + "content/icons/gam.svg" },
+    sidenav: { l10nID: "gam-pane-sidenav", icon: Gam.rootURI + "content/icons/gam-20.svg" },
     onItemChange: ({ item, setEnabled }) => {
       setEnabled(!!item?.isRegularItem());
     },
