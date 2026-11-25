@@ -54,6 +54,23 @@ const changes = [
   ["A China-United States Comparison of Asthma Mortality Trends", "A China-United States comparison of asthma mortality trends", "title-case"],
   ["The EU-Latin America Partnership for Global Health Research", "The EU-Latin America partnership for global health research", "title-case"],
   ["Efficient Quasi-Monte Carlo Methods for Lung Function Models", "Efficient quasi-Monte Carlo methods for lung function models", "title-case"],
+  // Names that are also common words: a title in Title Case keeps the capitals that it has.
+  ["US Food and Drug Administration Approval Summary: Osimertinib for Adjuvant Treatment",
+    "US Food and Drug Administration approval summary: osimertinib for adjuvant treatment", "title-case"],
+  ["Prevalence of Asthma Symptoms in Children in Chile", "Prevalence of asthma symptoms in children in Chile", "title-case"],
+  ["Malaria Control in Mali, Niger and Senegal: A Cohort Study", "Malaria control in Mali, Niger and Senegal: a cohort study", "title-case"],
+  ["Translation and Validation of the Arabic Version of the Asthma Control Test",
+    "Translation and validation of the Arabic version of the asthma control test", "title-case"],
+  ["Severe Asthma Outcomes in Turkey, Jordan, Chad and Guinea in August",
+    "Severe asthma outcomes in Turkey, Jordan, Chad and Guinea in August", "title-case"],
+  ["Airway Smooth Muscle of Guinea Pigs During Severe Asthma Attacks",
+    "Airway smooth muscle of guinea pigs during severe asthma attacks", "title-case"],
+  ["Renal Function Outcomes After gum arabic Supplementation in Adults",
+    "Renal function outcomes after gum arabic supplementation in adults", "title-case"],
+  ["PREVALENCE OF ASTHMA SYMPTOMS IN CHILDREN IN CHILE", "Prevalence of asthma symptoms in children in Chile", "title-case"],
+  ["The IMF-World Bank Annual Meetings and Global Health Policy",
+    "The IMF-World Bank annual meetings and global health policy", "title-case"],
+  ["Care of trisomy 21-down syndrome adults", "Care of trisomy 21-Down syndrome adults", "terms"],
   ["Care of non-down syndrome adults", "Care of non-Down syndrome adults", "terms"],
   ["Role of <i>Na</i><sup>+</sup> Signaling in Severe Asthma Outcomes", "Role of <i>Na</i><sup>+</sup> signaling in severe asthma outcomes", "title-case"],
   ["Care in non-european union countries and non-alzheimer dementia",
@@ -191,6 +208,20 @@ test("a Portuguese name after a hyphen keeps its capital", () => {
   assert.equal(propose("Cooperação Portugal-Brasil em Saúde Pública e Educação Médica", { lang: "pt" }).title,
     "Cooperação Portugal-Brasil em saúde pública e educação médica");
   assert.equal(propose("A cooperação portugal-brasil em saúde", { lang: "pt" }).title, "A cooperação Portugal-Brasil em saúde");
+});
+
+test("a Portuguese title in Title Case keeps the capitals of names that are also common words", () => {
+  assert.equal(propose("Cuidados de Saúde Primários na Argentina, na Suíça e no Irão", { lang: "pt" }).title,
+    "Cuidados de saúde primários na Argentina, na Suíça e no Irão");
+  // The term of the user wins.
+  assert.equal(propose("Effects of Gum Arabic Supplementation on Renal Function", { user: "arabic" }).title,
+    "Effects of gum arabic supplementation on renal function");
+});
+
+test("a name of the abstract wins over the same word in capitals", () => {
+  const title = "PREVALENCE OF ASTHMA SYMPTOMS IN CHILDREN IN OHIO";
+  assert.equal(caseProposal({ title, lang: "en", terms: termsFor("en", []), names: new Set(["ohio"]), acronyms: new Set(["OHIO"]) }).title,
+    "Prevalence of asthma symptoms in children in Ohio");
 });
 
 test("a title in capitals does not keep a short word that is also an acronym", () => {

@@ -56,6 +56,22 @@ const BUILTIN = {
   `),
 };
 
+// Names that are also common words. They give no capital, but a title in Title Case keeps the one that it has.
+const KEEP = {
+  en: list(`
+    Arabic, August, Chad, Chile, Food and Drug Administration, Guinea, Jordan, Mali, March, Niger, Polish, Turkey,
+    guinea pig, guinea pigs
+  `),
+  pt: list(`Argentina, Cuba, Equador, Estónia, Filipinas, Índia, Irão, Letónia, Malta, Peru, Sérvia, Síria, Suíça`),
+};
+
+/** The names of a title in Title Case (or an English one in capitals) that keep their capital there. */
+export function keptNames(lang, plain, caps) {
+  if (caps && lang !== "en") return [];
+  const text = caps ? plain.toLowerCase() : plain;
+  return (KEEP[lang] || []).filter((t) => t === t.toLowerCase() || text.includes(caps ? t.toLowerCase() : t));
+}
+
 /** The terms of a file: one in each line, "#" for comments, "en:" or "pt:" before a term for one language. */
 export function parseTerms(text) {
   const out = [];

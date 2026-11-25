@@ -2,6 +2,7 @@
 // Pure module: no Zotero or browser globals.
 
 import { segments, plainText, dropLooseTags } from "./title.mjs";
+import { keptNames } from "./terms.mjs";
 
 // --- Language
 
@@ -130,8 +131,8 @@ const LETTERED = /(?:hepatitis|vitamin|type|group|influenza|protein|factor|class
 function sentenceWord({ text, first, before, formula }, allCaps, known, inCapitals) {
   const name = known.has(letters(text.replace(/['’].*$/, "")).toLowerCase());
   if (allCaps) {
-    if (inCapitals.has(text)) return text;
     const low = text.toLowerCase();
+    if (inCapitals.has(text) && !name) return text;
     return first || name ? capitalise(low) : low;
   }
   if (first || name || formula) return text;
@@ -164,9 +165,13 @@ function termRegExp(terms) {
   return regExps.get(terms);
 }
 
-// After a hyphen, these are other words: step-down syndrome, real-world bank, pau-brasil, tinta-da-china.
-const joined = (before, fold) => (/^(?:down syndrome|world bank)$/.test(fold) && /[-‐‑]$/.test(before) && !/(?<!\p{L})non[-‐‑]$/iu.test(before))
-  || (/^(?:brasil|china)$/.test(fold) && /(?<!\p{L})(?:pau|da)[-‐‑]$/iu.test(before));
+// After these and a hyphen, the term is something else: step-down syndrome, real-world bank, pau-brasil, tinta-da-china.
+const OTHER = [
+  [/^down syndrome$/, /(?<!\p{L})(?:step|let|slow|shut|run|wind|break|lock|cool|knock)[-‐‑]$/iu],
+  [/^world bank$/, /(?<!\p{L})real[-‐‑]$/iu],
+  [/^(?:brasil|china)$/, /(?<!\p{L})(?:pau|da)[-‐‑]$/iu],
+];
+const joined = (before, fold) => OTHER.some(([term, left]) => term.test(fold) && left.test(before));
 
 /** Give the terms their case. onlyAdd: a match that would lose a capital does not change. */
 function applyTerms(segs, terms, onlyAdd) {
@@ -216,7 +221,12 @@ export function caseProposal({ title, lang, terms, names: known, acronyms: inCap
   if (!lang) return { title, reasons: [], suggestion: null };
   const segs = segments(title);
   const caps = capsWords(segs);
-  const sentence = () => applyTerms(mapWords(segs, (w) => sentenceWord(w, caps > 0, known, inCapitals)), terms, false);
+  const sentence = () => {
+    const have = new Set(terms.map((t) => t.toLowerCase()));
+    const kept = keptNames(lang, plainText(title), caps > 0).filter((t) => !have.has(t.toLowerCase()));
+    const all = kept.length ? [...terms, ...kept].sort((a, b) => b.length - a.length) : terms;
+    return applyTerms(mapWords(segs, (w) => sentenceWord(w, caps > 0, known, inCapitals)), all, false);
+  };
   if (caps >= 3 && caps <= 5) {
     const s = dropFootnote(join(sentence()));
     return { title, reasons: [], suggestion: s === title ? null : s };
