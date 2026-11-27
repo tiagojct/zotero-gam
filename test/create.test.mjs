@@ -194,6 +194,56 @@ function withNote(s, links = []) {
   return s;
 }
 
+test("Create note waits for a key job that runs now, so two items do not get the same key", async () => {
+  const s = setup();
+  const { exclusive } = await import("../content/queue.mjs");
+  let keys = [];
+  s.Gam.Zotero.DB.columnQueryAsync = async (sql, params) => (params[0] === "citationKey" ? keys : []);
+  let open;
+  const gate = new Promise((r) => { open = r; });
+  // An automatic key job that has chosen gamtest2026 for another item and saves it a moment later.
+  const job = exclusive(async () => { await gate; keys = ["gamtest2026"]; });
+  const note = createNote(s.Gam, s.item);
+  await new Promise((r) => setTimeout(r, 20));
+  open();
+  await job;
+  const r = await note;
+  assert.notEqual(r.citekey, "gamtest2026");
+  assert.match(r.citekey, /^gamtest2026[a-z]+$/);
+});
+
+test("Add Zotero link waits for a key job that runs now, and does not set a key that the job gave", async () => {
+  const s = withNote(setup());
+  const { exclusive } = await import("../content/queue.mjs");
+  let keys = [];
+  s.Gam.Zotero.DB.columnQueryAsync = async (sql, params) => (params[0] === "citationKey" ? keys : []);
+  let open;
+  const gate = new Promise((r) => { open = r; });
+  const job = exclusive(async () => { await gate; keys = ["cai2026"]; });
+  const link = linkNote(s.Gam, s.item);
+  await new Promise((r) => setTimeout(r, 20));
+  open();
+  await job;
+  const r = await link;
+  assert.equal(r.citekey, null);
+  assert.equal(s.item.fields.citationKey, "");
+  assert.match(r.warning, /used by another item/);
+});
+
+test("Add Zotero link does not write the key of the note over a key that a job gave while it waited", async () => {
+  const s = withNote(setup());
+  const { exclusive } = await import("../content/queue.mjs");
+  let open;
+  const gate = new Promise((r) => { open = r; });
+  const job = exclusive(async () => { await gate; s.item.fields.citationKey = "gamtest2026"; });
+  const link = linkNote(s.Gam, s.item);
+  await new Promise((r) => setTimeout(r, 20));
+  open();
+  await job;
+  await link;
+  assert.equal(s.item.fields.citationKey, "gamtest2026");
+});
+
 test("linkNote adds the child note in the Create note format and writes nothing in the vault", async () => {
   const s = withNote(setup({ citationKey: "cai2026" }));
   s.Gam.prefs.marker = () => "gam";

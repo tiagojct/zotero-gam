@@ -11,6 +11,7 @@ import { missingLinks, linksTo } from "./lib/state.mjs";
 const linking = new Set();
 import { createFile } from "./vault.mjs";
 import { libraryCitekeys, saveCitekey } from "./keys.mjs";
+import { exclusive } from "./queue.mjs";
 import { notify } from "./notify.mjs";
 import { openInObsidian, noteState, canChange } from "./ui/common.mjs";
 
@@ -60,6 +61,25 @@ async function addChildNote(Gam, item, html) {
 export async function createNote(Gam, item, { open = Gam.prefs.openAfterCreate(), quiet = false, refresh = true, proposedKey = null } = {}) {
   const Zotero = Gam.Zotero;
   checkItem(Gam, item);
+  // In the write queue: an automatic key that is chosen at the same time cannot be the same key.
+  const plan = await exclusive(() => writeNote(Gam, item, proposedKey));
+  if (refresh) await Gam.refresh({ force: true });
+  let openError = null;
+  if (open) {
+    try {
+      openInObsidian(Gam, plan.relPath);
+    } catch (e) {
+      openError = `Obsidian did not open the note: ${e.message || e}`;
+    }
+  }
+  if (!quiet) notify(Zotero, [`Note created: ${plan.relPath}`, openError].filter(Boolean).join("\n"), !openError);
+  return { path: plan.relPath, citekey: plan.citekey, openError };
+}
+
+/** The part of createNote that chooses the key and writes. Returns the plan. */
+async function writeNote(Gam, item, proposedKey) {
+  const Zotero = Gam.Zotero;
+  checkItem(Gam, item); // Again: the item can change while an earlier job runs.
   const { citekey: existingKey } = Gam.itemInfo(item);
   if (existingKey && !safeFileKey(existingKey)) {
     throw new Error(`The citekey "${existingKey}" cannot be used as a file name. Nothing was written.`);
@@ -93,18 +113,7 @@ export async function createNote(Gam, item, { open = Gam.prefs.openAfterCreate()
     await Gam.refresh({ force: true });
     throw new Error(`The note file was written to ${plan.relPath}, but the change in Zotero failed: ${e.message || e}`);
   }
-
-  if (refresh) await Gam.refresh({ force: true });
-  let openError = null;
-  if (open) {
-    try {
-      openInObsidian(Gam, plan.relPath);
-    } catch (e) {
-      openError = `Obsidian did not open the note: ${e.message || e}`;
-    }
-  }
-  if (!quiet) notify(Zotero, [`Note created: ${plan.relPath}`, openError].filter(Boolean).join("\n"), !openError);
-  return { path: plan.relPath, citekey: plan.citekey, openError };
+  return plan;
 }
 
 /** Create notes for several items; report one summary. */
@@ -147,6 +156,20 @@ export async function linkNote(Gam, item, opts = {}) {
 
 async function linkNoteOnce(Gam, item, { quiet = false, refresh = true }) {
   const Zotero = Gam.Zotero;
+  // In the write queue: an automatic key that is chosen at the same time cannot be the same key,
+  // and the item is read after that job.
+  const done = await exclusive(() => linkWrite(Gam, item));
+  if (!done) return { childNote: false, citekey: null, warning: null };
+  const { missing, citekey, warning } = done;
+  if (refresh) await Gam.refresh({ force: true });
+  if (!quiet) notify(Zotero, [`Linked to ${missing.note.path}`, warning].filter(Boolean).join("\n"), !warning);
+  return { childNote: missing.childNote, citekey, warning };
+}
+
+/** The part of linkNote that reads what is missing and writes it. Returns {missing, citekey, warning} or null. */
+async function linkWrite(Gam, item) {
+  const Zotero = Gam.Zotero;
+  checkItem(Gam, item);
   const info = Gam.itemInfo(item);
   const missing = missingLinks({
     index: Gam.state.index,
@@ -155,8 +178,7 @@ async function linkNoteOnce(Gam, item, { quiet = false, refresh = true }) {
     citekey: info.citekey,
     itemKey: info.itemKey,
   });
-  if (!missing) return { childNote: false, citekey: null, warning: null };
-
+  if (!missing) return null;
   let citekey = null;
   let warning = null;
   if (missing.citekey) {
@@ -177,9 +199,7 @@ async function linkNoteOnce(Gam, item, { quiet = false, refresh = true }) {
     const keySet = citekey && Gam.itemInfo(item).citekey === citekey ? ` The citekey "${citekey}" was set.` : "";
     throw new Error(`The link to ${path} was not added: ${e.message || e}.${keySet}`);
   }
-  if (refresh) await Gam.refresh({ force: true });
-  if (!quiet) notify(Zotero, [`Linked to ${path}`, warning].filter(Boolean).join("\n"), !warning);
-  return { childNote: missing.childNote, citekey, warning };
+  return { missing, citekey, warning };
 }
 
 /** linkNote for several items; one refresh and one summary. */
