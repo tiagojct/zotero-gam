@@ -16,6 +16,8 @@ async function startup({ id, version, rootURI }, reason) {
     src: rootURI + "content/preferences.xhtml",
     label: "gam",
     image: rootURI + "content/icons/gam.svg",
+    // The OpenAlex key field: it is not a pref, so a script fills and saves it.
+    scripts: [`chrome://${pkg}/content/preferences.js`],
   });
   ({ Gam } = ChromeUtils.importESModule(`chrome://${pkg}/content/gam.mjs`));
   const homeDir = Services.dirsvc.get("Home", Ci.nsIFile).path;

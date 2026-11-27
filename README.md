@@ -28,8 +28,12 @@ A gam is a meeting of two whaling ships at sea to exchange news.
   - Tell me about files without a parent (setting, off by default): a notice when Zotero does not identify a new PDF or EPUB.
   - Turn off other plugins that change titles (for example Linter) before you turn on the first setting.
   - gam does not change the title in a literature note when the title in Zotero changes.
+- PDFs from OpenAlex:
+  - Look for PDFs in OpenAlex (setting, off by default): Zotero's Find Full Text, and items saved from the browser, also try the open PDF links that OpenAlex gives for the DOI. gam adds the entry "OpenAlex (gam)" to Zotero's PDF resolvers (the hidden setting `extensions.zotero.findPDFs.resolvers`) and keeps the other entries. When the setting is off, or gam is turned off or removed, the entry goes.
+  - Item menu > Find PDF in OpenAlex: for the selected items with a DOI and no PDF or EPUB. It tries the open PDF links of OpenAlex. With an OpenAlex API key, it then tries the copy of the PDF that OpenAlex keeps. Each copy uses $0.01 of the daily OpenAlex budget (a free key gives about 100 a day). Zotero downloads each file and names it. Items without a DOI are not looked up.
+  - The key is optional. gam keeps it encrypted in Zotero's login store, not in the settings, and sends it to OpenAlex only in a request header.
 - Import folder (setting, off by default): adds the PDF and EPUB files of a folder to My Library, and moves each file to another folder after it. See Preferences.
-- Context menu of items: Open note in Obsidian, Create note, Add Zotero link to note, Assign citation keys…, Clean…, Copy [[citekey]], Copy [@citekey] (a Pandoc citation; a key with characters that Pandoc would cut short is written as `[@{key}]`).
+- Context menu of items: Open note in Obsidian, Create note, Add Zotero link to note, Assign citation keys…, Clean…, Find PDF in OpenAlex, Copy [[citekey]], Copy [@citekey] (a Pandoc citation; a key with characters that Pandoc would cut short is written as `[@{key}]`).
 - Context menu of collections: Create notes for collection.
 - Tools menu: Citation keys…, Clean library…, Refresh gam index.
 - Selection endpoint: `GET http://127.0.0.1:23119/gam/selection` gives the items selected in the Zotero window (or the paper open in the reader), with key, library, type, title, citekey and DOI, and the selected collection. zotero-local-mcp reads it for get_selected_items. It reads only. It refuses requests from web pages (an Origin header) and from browsers.
@@ -59,6 +63,8 @@ Zotero Settings > gam:
 | Clean the titles of new items | off |
 | Tell me about files without a parent | off |
 | Terms file | empty (only the terms of gam) |
+| Look for PDFs in OpenAlex | off |
+| OpenAlex API key | empty (kept in the login store) |
 | Import the PDF and EPUB files of a folder | off |
 | Import folder | empty: set it before first use |
 | Move imported files to | empty (the subfolder "imported") |

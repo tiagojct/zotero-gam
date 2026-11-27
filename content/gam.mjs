@@ -19,6 +19,7 @@ import { makeOrphanWatch } from "./orphans.mjs";
 import { makeFolderImport } from "./import-folder.mjs";
 import { listMarkdown, checkVault, realFolderCase } from "./vault.mjs";
 import { registerEndpoints } from "./server.mjs";
+import { syncResolver, findPDFs } from "./find-pdf.mjs";
 
 const { setTimeout, clearTimeout } = ChromeUtils.importESModule("resource://gre/modules/Timer.sys.mjs");
 
@@ -90,6 +91,7 @@ export const Gam = {
     importOn: () => pref("importOn") === true,
     importFolder: () => folderPref("importFolder"),
     importDone: () => folderPref("importDone"),
+    openAlexPDFs: () => pref("openAlexPDFs") === true,
   },
 
   get Zotero() {
@@ -178,6 +180,10 @@ export const Gam = {
     this.actions.linkNote = (item) => linkNote(this, item).catch((e) => {
       notify(Zotero, e.message || String(e), false);
     });
+    this.actions.findPDFs = (items) => findPDFs(this, items).catch((e) => {
+      Zotero.logError(e);
+      notify(Zotero, e.message || String(e), false);
+    });
     this.actions.clean = (items, opts) => cleanItems(this, items, {
       ...opts, confirm: async (plan) => confirmClean(this, plan, opts.name),
     });
@@ -200,6 +206,16 @@ export const Gam = {
       folderImport?.changed();
       if (this.prefs.importOn()) Zotero.Prefs.set(PREF + "importOn", false, true);
     }, true)));
+    // gam's entry in Zotero's PDF resolvers follows the setting.
+    const syncPDFs = () => {
+      try {
+        syncResolver(this, this.prefs.openAlexPDFs());
+      } catch (e) {
+        Zotero.logError(e);
+      }
+    };
+    syncPDFs();
+    prefObservers.push(Zotero.Prefs.registerObserver(PREF + "openAlexPDFs", syncPDFs, true));
     // On ADDON_ENABLE the main window is already open, and Zotero does not call onMainWindowLoad for it.
     for (const win of Zotero.getMainWindows()) {
       if (win.ZoteroPane) this.onMainWindowLoad(win);
@@ -211,6 +227,12 @@ export const Gam = {
     if (notifierID) Zotero.Notifier.unregisterObserver(notifierID);
     notifierID = null;
     for (const symbol of prefObservers) Zotero.Prefs.unregisterObserver(symbol);
+    // Off or removed: gam's entry goes. (shutdown does not run when Zotero quits, so the entry stays then.)
+    try {
+      syncResolver(this, false);
+    } catch (e) {
+      Zotero.logError(e);
+    }
     prefObservers = [];
     run += 1;
     settingsChanged?.cancel();

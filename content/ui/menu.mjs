@@ -6,6 +6,7 @@ import { wikilink, pandocCite } from "../lib/copy.mjs";
 import { confirmNotes, confirmKeys } from "./preview-dialog.mjs";
 import { assignKeys } from "../keys.mjs";
 import { canClean, isOrphan } from "../clean.mjs";
+import { canFind } from "../find-pdf.mjs";
 
 export function registerMenus(Gam) {
   const Zotero = Gam.Zotero;
@@ -111,6 +112,17 @@ export function registerMenus(Gam) {
         onCommand: (ev, ctx) => {
           const items = ctx.items || [];
           (async () => runClean(items, items.length === 1 ? "selected item" : "selected items"))().catch(report);
+        },
+      },
+      {
+        menuType: "menuitem",
+        l10nID: "gam-menu-find-pdf",
+        onShowing: (ev, ctx) => {
+          ctx.setVisible((ctx.items || []).some((i) => canFind(Zotero, i)));
+        },
+        // All selected items: the run counts the items that it leaves out.
+        onCommand: (ev, ctx) => {
+          Gam.actions.findPDFs(ctx.items || []);
         },
       },
       {

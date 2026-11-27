@@ -146,3 +146,26 @@ test("the item menu has Clean for items and files without a parent that gam can 
   await settle();
   assert.deepEqual(s.ran, [[[1], "selected items", [2]], [[1], "selected item", []]]);
 });
+
+test("Find PDF in OpenAlex shows for an item with a DOI and no PDF", () => {
+  const s = setup();
+  const files = new Map([[11, { attachmentContentType: "application/pdf", isInTrash: () => false }]]);
+  Object.assign(s.Gam.Zotero, {
+    Items: { get: (id) => files.get(id) },
+    Utilities: { ...s.Gam.Zotero.Utilities, cleanDOI: (x) => (/10\.\d+\/\S+/.exec(x) || [null])[0] },
+  });
+  const ran = [];
+  s.Gam.actions = { findPDFs: (items) => ran.push(items) };
+  const entry = s.find("gam-item", "gam-menu-find-pdf");
+  const doc = (doi, atts = []) => ({
+    isRegularItem: () => true, library: { editable: true }, getField: (f) => (f === "DOI" ? doi : ""), getAttachments: () => atts,
+  });
+  assert.equal(visible(entry, { items: [doc("10.1/a")] }), true);
+  assert.equal(visible(entry, { items: [doc("10.1/a", [11])] }), false);
+  assert.equal(visible(entry, { items: [doc("")] }), false);
+  assert.equal(visible(entry, { items: [{ ...doc("10.1/a"), library: { editable: false } }] }), false);
+  const a = doc("10.1/a");
+  entry.onCommand({}, { items: [a, doc("")] });
+  assert.equal(ran.length, 1);
+  assert.equal(ran[0].length, 2);
+});

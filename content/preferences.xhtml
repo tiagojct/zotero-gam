@@ -51,4 +51,13 @@
     <html:input type="text" aria-labelledby="gam-pref-import-done-label" preference="extensions.gam.importDone"/>
     <description data-l10n-id="gam-pref-import-done-help"/>
   </groupbox>
+  <groupbox>
+    <label><html:h2 data-l10n-id="gam-pref-group-pdfs"/></label>
+    <checkbox preference="extensions.gam.openAlexPDFs" data-l10n-id="gam-pref-openalex-pdfs"/>
+    <description data-l10n-id="gam-pref-openalex-pdfs-help"/>
+    <label id="gam-pref-openalex-key-label" data-l10n-id="gam-pref-openalex-key"/>
+    <html:input type="password" id="gam-pref-openalex-key" aria-labelledby="gam-pref-openalex-key-label" aria-describedby="gam-pref-openalex-key-help gam-pref-openalex-key-status" autocomplete="off"/>
+    <description id="gam-pref-openalex-key-help" data-l10n-id="gam-pref-openalex-key-help"/>
+    <html:div id="gam-pref-openalex-key-status" role="status" aria-live="polite"/>
+  </groupbox>
 </vbox>

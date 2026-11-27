@@ -11,3 +11,4 @@ pref("extensions.gam.termsFile", "");
 pref("extensions.gam.importOn", false);
 pref("extensions.gam.importFolder", "");
 pref("extensions.gam.importDone", "");
+pref("extensions.gam.openAlexPDFs", false);
