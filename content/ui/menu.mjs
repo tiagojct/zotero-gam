@@ -33,6 +33,22 @@ export function registerMenus(Gam) {
     }
     return selected[0] || Zotero.Libraries.userLibraryID;
   };
+  // {id, library} of the selected library when gam can write to it, or null (with a notice) for a feed
+  // or a read-only library.
+  const writableLibrary = (command) => {
+    const libraryID = selectedLibraryID(command);
+    if (!libraryID) return null;
+    const library = Zotero.Libraries.get(libraryID);
+    if (library?.libraryType === "feed") {
+      notify(Zotero, `${command} does not work on a feed.`, false);
+      return null;
+    }
+    if (!library?.editable) {
+      notify(Zotero, `${command} does not work on a read-only library.`, false);
+      return null;
+    }
+    return { id: libraryID, library };
+  };
 
   const itemMenu = Zotero.MenuManager.registerMenu({
     menuID: "gam-item",
@@ -186,10 +202,10 @@ export function registerMenus(Gam) {
         // All items of the library that is selected in the left pane.
         onCommand: () => {
           (async () => {
-            const libraryID = selectedLibraryID("Citation keys");
-            if (!libraryID) return;
-            const items = (await Zotero.Items.getAll(libraryID, true, false)).filter((i) => i.isRegularItem());
-            await runKeys(items, Zotero.Libraries.get(libraryID)?.name || "library");
+            const target = writableLibrary("Citation keys");
+            if (!target) return;
+            const items = (await Zotero.Items.getAll(target.id, true, false)).filter((i) => i.isRegularItem());
+            await runKeys(items, target.library.name || "library");
           })().catch(report);
         },
       },
@@ -198,18 +214,9 @@ export function registerMenus(Gam) {
         l10nID: "gam-menu-clean-library",
         onCommand: () => {
           (async () => {
-            const libraryID = selectedLibraryID("Clean library");
-            if (!libraryID) return;
-            const library = Zotero.Libraries.get(libraryID);
-            if (library?.libraryType === "feed") {
-              notify(Zotero, "Clean library does not work on a feed.", false);
-              return;
-            }
-            if (!library?.editable) {
-              notify(Zotero, "Clean library does not work on a read-only library.", false);
-              return;
-            }
-            await runClean(await Zotero.Items.getAll(libraryID, true, false), library.name || "library");
+            const target = writableLibrary("Clean library");
+            if (!target) return;
+            await runClean(await Zotero.Items.getAll(target.id, true, false), target.library.name || "library");
           })().catch(report);
         },
       },

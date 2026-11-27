@@ -120,6 +120,18 @@ test("Clean library refuses two libraries, a feed and a read-only library", asyn
   }
 });
 
+test("Citation keys refuses a feed and a read-only library", async () => {
+  for (const [o, re] of [[{ type: "feed" }, /Citation keys does not work on a feed/], [{ editable: false }, /Citation keys does not work on a read-only library/]]) {
+    const s = cleanSetup(o);
+    let read = 0;
+    s.Gam.Zotero.Items.getAll = async () => { read++; return [s.paper]; };
+    s.find("gam-tools", "gam-menu-keys-library").onCommand();
+    await settle();
+    assert.equal(read, 0);
+    assert.match(s.notices.join(" "), re);
+  }
+});
+
 test("the item menu has Clean for items and files without a parent that gam can change", async () => {
   const s = cleanSetup();
   const entry = s.find("gam-item", "gam-menu-clean");
