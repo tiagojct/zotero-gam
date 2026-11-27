@@ -42,7 +42,8 @@
     });
   }
 
-  window.addEventListener("load", (event) => {
+  // On the document, not the window: Gecko does not pass the "load" event of an element on to the window.
+  document.addEventListener("load", (event) => {
     if (event.target?.id === "gam-prefs") init().catch((e) => Zotero.logError(e));
   }, true);
 })();
