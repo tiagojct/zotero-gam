@@ -57,7 +57,7 @@ export async function takenKeys(Gam) {
 /** Keep the key watch current after a write, also during a scan (see Gam.scan). */
 function remember(Gam, id, key) {
   Gam.state.keys?.set(id, key);
-  Gam.state.keysTouched?.add(id);
+  Gam.state.keysTouched?.set(id, key);
 }
 
 /** Map of item ID to key, for every item that has a key (one query). */
@@ -71,6 +71,27 @@ export async function readAllKeys(Zotero) {
   for (const [id, f] of fields) {
     const key = currentKey({ citationKey: f.citationKey, extra: f.extra });
     if (key) keys.set(id, key);
+  }
+  return keys;
+}
+
+/**
+ * The key map of a scan: readAllKeys, plus the keys that gam wrote or saw while the query ran
+ * (they are newer than the query).
+ */
+export async function scanKeys(Gam) {
+  // Item ID to key ("" for a removed key). The first scan has no map yet, so the values are kept here.
+  const touched = new Map();
+  Gam.state.keysTouched = touched;
+  let keys;
+  try {
+    keys = await readAllKeys(Gam.Zotero);
+  } finally {
+    if (Gam.state.keysTouched === touched) Gam.state.keysTouched = null;
+  }
+  for (const [id, key] of touched) {
+    if (key) keys.set(id, key);
+    else keys.delete(id);
   }
   return keys;
 }
@@ -110,14 +131,15 @@ export function shortTitle(title, max = 60) {
  */
 export function checkKeyChanges(Gam, ids) {
   const before = Gam.state.keys;
-  if (!before) return [];
   const items = (Gam.Zotero.Items.get(ids) || []).filter((i) => i?.isRegularItem?.());
   const after = new Map(items.map((i) => [i.id, Gam.itemInfo(i).citekey || ""]));
+  for (const [id, key] of after) Gam.state.keysTouched?.set(id, key);
+  // The first scan has not read the keys yet: nothing to compare with.
+  if (!before) return [];
   const changes = keyChanges(before, after, [...after.keys()]);
   for (const [id, key] of after) {
     if (key) before.set(id, key);
     else before.delete(id);
-    Gam.state.keysTouched?.add(id);
   }
   if (!changes.length) return [];
   const index = Gam.state.index;

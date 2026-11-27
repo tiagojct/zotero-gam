@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { buildIndex } from "../content/lib/index.mjs";
 import { currentKey } from "../content/lib/citekey.mjs";
 
-const { autoKeys, assignKeys, checkKeyChanges, readAllKeys, takenKeys, readyForKey, shortTitle } = await import("../content/keys.mjs");
+const { autoKeys, assignKeys, checkKeyChanges, readAllKeys, takenKeys, readyForKey, shortTitle, scanKeys } = await import("../content/keys.mjs");
 
 function setup({ autoKey = true, libraryKeys = [], vaultFiles = [], keys = new Map() } = {}) {
   const notices = [];
@@ -258,4 +258,36 @@ test("a notice has one line in the window for each line of the message", async (
     startCloseTimer() {}
   } }, "one\ntwo");
   assert.deepEqual(calls, ["one", "two"]);
+});
+
+test("the first scan keeps the keys that gam writes or sees while it reads the keys", async () => {
+  const s = setup({ keys: null });
+  s.makeItem(1);
+  s.makeItem(2, { citationKey: "lee2020" });
+  s.makeItem(3, { citationKey: "old2019" });
+  let open;
+  const gate = new Promise((r) => { open = r; });
+  // The query reads the database before the writes below: it has only the old keys.
+  s.Zotero.DB.queryAsync = async () => {
+    const rows = [{ itemID: 2, fieldName: "citationKey", value: "lee2020" }, { itemID: 3, fieldName: "citationKey", value: "old2019" }];
+    await gate;
+    return rows;
+  };
+  const scan = scanKeys(s.Gam);
+  await autoKeys(s.Gam, [1]);
+  s.items.get(2).fields.citationKey = "lee2021";
+  checkKeyChanges(s.Gam, [2]);
+  s.items.get(3).fields.citationKey = "";
+  checkKeyChanges(s.Gam, [3]);
+  open();
+  const keys = await scan;
+  assert.deepEqual([...keys].sort(), [[1, "smith2020"], [2, "lee2021"]]);
+  assert.equal(s.Gam.state.keysTouched, null);
+});
+
+test("a scan that fails leaves no list of touched keys", async () => {
+  const s = setup({ keys: null });
+  s.Zotero.DB.queryAsync = async () => { throw new Error("db"); };
+  await assert.rejects(scanKeys(s.Gam), /db/);
+  assert.equal(s.Gam.state.keysTouched, null);
 });

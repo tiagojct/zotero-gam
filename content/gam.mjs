@@ -12,7 +12,7 @@ import { registerPane } from "./ui/pane.mjs";
 import { registerMenus } from "./ui/menu.mjs";
 import { confirmClean } from "./ui/clean-dialog.mjs";
 import { createNote, linkNote, notify } from "./create.mjs";
-import { readAllKeys, checkKeyChanges, autoKeys } from "./keys.mjs";
+import { scanKeys, checkKeyChanges, autoKeys } from "./keys.mjs";
 import { autoTitles, cleanItems } from "./clean.mjs";
 import { makeNewItems } from "./new-items.mjs";
 import { makeOrphanWatch } from "./orphans.mjs";
@@ -67,7 +67,7 @@ export const Gam = {
   rootURI: null,
   // literatureFolder: the folder of the last scan, with the case of the folders on disk.
   // keys: Map of item ID to citation key, for the key watch (null before the first scan).
-  // keysTouched: item IDs whose key changed while a scan reads the keys (see scan).
+  // keysTouched: item ID to key, for the keys that changed while a scan reads the keys (see scanKeys).
   state: { index: null, error: null, links: new Map(), literatureFolder: null, keys: null, keysTouched: null },
   // Functions that Tasks 7 and 8 add, called after each refresh (for example, to redraw the column).
   onRefresh: [],
@@ -296,21 +296,8 @@ export const Gam = {
     }
     await this.loadLinks(thisRun);
     if (stopped()) return;
-    // Keys written or seen while the query runs are newer than the query: keep them.
-    const touched = new Set();
-    this.state.keysTouched = touched;
-    let keys;
-    try {
-      keys = await readAllKeys(Zotero);
-    } finally {
-      if (this.state.keysTouched === touched) this.state.keysTouched = null;
-    }
+    const keys = await scanKeys(this);
     if (stopped()) return;
-    for (const id of touched) {
-      const key = this.state.keys?.get(id);
-      if (key) keys.set(id, key);
-      else keys.delete(id);
-    }
     this.state.keys = keys;
     Zotero.debug(`gam: index ${this.state.index ? this.state.index.citekeys().size : 0} literature notes, `
       + `${this.state.links.size} items with obsidian links`);
