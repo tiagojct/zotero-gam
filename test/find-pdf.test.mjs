@@ -4,7 +4,7 @@ import fs from "node:fs";
 import { installFakeIO } from "./helpers/fake-io.mjs";
 
 installFakeIO();
-const { syncResolver, findPDFs, canFind } = await import("../content/find-pdf.mjs");
+const { syncResolver, findPDFs, canFind, zoteroProgress } = await import("../content/find-pdf.mjs");
 const { RESOLVER, RESOLVER_NAME } = await import("../content/lib/openalex.mjs");
 
 const work = JSON.parse(fs.readFileSync(new URL("./fixtures/openalex-work.json", import.meta.url), "utf8"));
@@ -72,6 +72,14 @@ function deps(over = {}) {
     readHead: async () => new TextEncoder().encode("%PDF-1.7"),
     tempPath: () => "/tmp/gam-openalex-test.pdf",
     remove: async (p) => { calls.removed.push(p); },
+    progress: (items) => {
+      calls.progress = { rows: items.map((i) => i.id), updates: [], status: null, cancel: false };
+      return {
+        update: (id, code, text) => calls.progress.updates.push([id, code, text]),
+        cancelled: () => calls.progress.cancel,
+        finish: (text) => { calls.progress.status = text; },
+      };
+    },
     ...over,
   };
   return d;
@@ -263,4 +271,114 @@ test("a 403 of one OpenAlex copy counts as not found, and the run goes on", asyn
   assert.equal(counts.stopped, null);
   assert.equal(counts.notFound, 2);
   assert.equal(d.calls.removed.length, 2);
+});
+
+const [PROCESSING, FAILED, SUCCEEDED] = [2, 3, 4];
+
+test("the progress window has a row for each item tried, with its result", async () => {
+  const { Zotero, items } = fakeZotero();
+  const list = [1, 2, 3].map((id) => makeItem(Zotero, items, id, { doi: `10.1/${id}` }));
+  list.push(makeItem(Zotero, items, 4));
+  let n = 0;
+  const d = deps({
+    getKey: async () => KEY,
+    addFileFromURLs: async () => (++n === 1 ? { id: 5 } : null),
+    download: async (url, path, opts) => (n === 2 ? { status: 200 } : { status: 404 }),
+  });
+  await findPDFs(Gam(Zotero), list, d);
+  assert.deepEqual(d.calls.progress.rows, [1, 2, 3]);
+  assert.deepEqual(d.calls.progress.updates, [
+    [1, PROCESSING, "Looking up"], [1, SUCCEEDED, "PDF attached"],
+    [2, PROCESSING, "Looking up"], [2, SUCCEEDED, "PDF attached (OpenAlex copy)"],
+    [3, PROCESSING, "Looking up"], [3, FAILED, "No open PDF"],
+  ]);
+  assert.match(d.calls.progress.status, /^Find PDF in OpenAlex: 2 PDFs attached/);
+});
+
+test("a stop marks the other rows Not done, and the window shows the reason", async () => {
+  const { Zotero, items } = fakeZotero();
+  const list = [1, 2, 3].map((id) => makeItem(Zotero, items, id, { doi: `10.1/${id}` }));
+  const d = deps({ getKey: async () => KEY, request: async () => ({ status: 401, response: null }) });
+  await findPDFs(Gam(Zotero), list, d);
+  assert.deepEqual(d.calls.progress.updates, [
+    [1, PROCESSING, "Looking up"], [1, FAILED, "Not done"], [2, FAILED, "Not done"], [3, FAILED, "Not done"],
+  ]);
+  assert.match(d.calls.progress.status, /OpenAlex refused the API key/);
+});
+
+test("Cancel stops before the next item; the rest is Not done", async () => {
+  const { Zotero, items } = fakeZotero();
+  const list = [1, 2, 3].map((id) => makeItem(Zotero, items, id, { doi: `10.1/${id}` }));
+  const d = deps({
+    request: async (url, opts) => { d.calls.request.push({ url }); d.calls.progress.cancel = true; return { status: 404, response: null }; },
+  });
+  const counts = await findPDFs(Gam(Zotero), list, d);
+  assert.equal(d.calls.request.length, 1);
+  assert.equal(counts.stopped, "cancelled");
+  assert.deepEqual(d.calls.progress.updates.slice(2), [[2, FAILED, "Not done"], [3, FAILED, "Not done"]]);
+  assert.match(Zotero.notices.at(-1), /^Find PDF in OpenAlex was cancelled\./);
+});
+
+test("Cancel during the last item changes nothing", async () => {
+  const { Zotero, items } = fakeZotero();
+  const list = [1, 2].map((id) => makeItem(Zotero, items, id, { doi: `10.1/${id}` }));
+  const d = deps({
+    request: async (url) => { d.calls.request.push({ url }); if (d.calls.request.length === 2) d.calls.progress.cancel = true; return { status: 404, response: null }; },
+  });
+  const counts = await findPDFs(Gam(Zotero), list, d);
+  assert.equal(counts.stopped, null);
+  assert.doesNotMatch(Zotero.notices.at(-1), /cancelled/);
+  assert.equal(d.calls.progress.updates.filter((u) => u[2] === "Not done").length, 0);
+});
+
+test("no window when no item is tried", async () => {
+  const { Zotero, items } = fakeZotero();
+  const d = deps();
+  await findPDFs(Gam(Zotero), [makeItem(Zotero, items, 1)], d);
+  assert.equal(d.calls.progress, undefined);
+});
+
+// A progress queue that behaves as Zotero 10.0.9's: getRows gives the live list, cancel empties it, and
+// setStatus(null) throws.
+function fakeQueues() {
+  const queues = new Map();
+  const create = ({ id }) => {
+    let rows = [];
+    const listeners = { cancel: [] };
+    const dialog = {
+      opened: 0, status: undefined,
+      open() { this.opened += 1; }, showMinimizeButton() {},
+      setStatus(msg) { if (typeof msg === "object" && "l10nId" in msg) throw new TypeError("null"); this.status = msg; },
+    };
+    const q = {
+      getRows: () => rows,
+      addRow: (item) => { rows = rows.filter((r) => r.id !== item.id); rows.push({ id: item.id, status: 1, message: "" }); },
+      deleteRow: (rid) => { rows.splice(rows.findIndex((r) => r.id === rid), 1); },
+      updateRow: (rid, status, message) => { const r = rows.find((x) => x.id === rid); if (r) Object.assign(r, { status, message }); },
+      addListener: (name, fn) => listeners[name].push(fn),
+      removeListener: (name, fn) => { listeners[name] = listeners[name].filter((f) => f !== fn); },
+      cancel: () => { rows = []; listeners.cancel.forEach((f) => f()); },
+      getDialog: () => dialog,
+    };
+    queues.set(id, q);
+    return q;
+  };
+  return { get: (id) => queues.get(id), create };
+}
+
+test("the Zotero progress window: a second run clears the old rows, and Cancel is seen", () => {
+  globalThis.Services = { wm: { getEnumerator: () => [] } };
+  const Zotero = { ProgressQueues: fakeQueues(), Promise: { delay: () => Promise.resolve() } };
+  const items = (ids) => ids.map((id) => ({ id }));
+  const first = zoteroProgress(Zotero, items([1, 2, 3, 4, 5, 6]));
+  first.finish("done");
+  const second = zoteroProgress(Zotero, items([7, 8]));
+  const queue = Zotero.ProgressQueues.get("gam-openalex");
+  assert.deepEqual(queue.getRows().map((r) => r.id), [7, 8]);
+  assert.equal(second.cancelled(), false);
+  queue.cancel();
+  assert.equal(second.cancelled(), true);
+  assert.equal(first.cancelled(), false);
+  second.finish("Find PDF in OpenAlex was cancelled.\nmore");
+  assert.equal(queue.getDialog().status, "Find PDF in OpenAlex was cancelled. more");
 });

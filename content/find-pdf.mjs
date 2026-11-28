@@ -61,7 +61,55 @@ const STOP_TEXT = {
   denied: "OpenAlex refused the request.",
   budget: "The daily OpenAlex budget is used, or the requests were too fast. Try again later.",
   offline: "Zotero is offline, or OpenAlex cannot be reached.",
+  cancelled: "Find PDF in OpenAlex was cancelled.",
 };
+
+// Row status codes of Zotero.ProgressQueue.
+const ROW = { processing: 2, failed: 3, succeeded: 4 };
+const QUEUE_ID = "gam-openalex";
+const TITLE = "Find PDF in OpenAlex";
+
+/**
+ * Zotero's progress queue window (as for Find Full Text): a row for each item, a bar and Cancel.
+ * Zotero reads the title and the columns as keys of its own strings, so gam gives Zotero's keys and then
+ * sets the title of the window.
+ */
+export function zoteroProgress(Zotero, items) {
+  let queue = Zotero.ProgressQueues.get(QUEUE_ID);
+  if (!queue) {
+    queue = Zotero.ProgressQueues.create({
+      id: QUEUE_ID, title: "pane.items.menu.findAvailableFile", columns: ["general.item", "attachment.fullText"],
+    });
+  }
+  let cancelled = false;
+  const onCancel = () => { cancelled = true; };
+  queue.addListener("cancel", onCancel);
+  // getRows gives Zotero's own list: copy it before rows go.
+  for (const row of [...queue.getRows()]) queue.deleteRow(row.id);
+  for (const item of items) queue.addRow(item);
+  const dialog = queue.getDialog();
+  dialog.showMinimizeButton(false);
+  // "" and not null: Zotero's setStatus fails on null. An empty status shows Zotero's "Processing".
+  dialog.setStatus("");
+  dialog.open();
+  const setTitle = () => {
+    for (const win of Services.wm.getEnumerator(null)) {
+      if (String(win.location?.href).endsWith("progressQueueDialog.xhtml") && win.arguments?.[0]?.progressQueue === queue) {
+        win.document.title = TITLE;
+      }
+    }
+  };
+  // The window sets its own title when it loads.
+  for (const ms of [0, 300, 1000]) Zotero.Promise.delay(ms).then(setTitle).catch(() => {});
+  return {
+    update: (id, code, text) => queue.updateRow(id, code, text),
+    cancelled: () => cancelled,
+    finish: (text) => {
+      queue.removeListener("cancel", onCancel);
+      dialog.setStatus(String(text).split("\n").join(" "));
+    },
+  };
+}
 
 function defaultDeps(Zotero) {
   let n = 0;
@@ -74,6 +122,7 @@ function defaultDeps(Zotero) {
     readHead: (path) => IOUtils.read(path, { maxBytes: 1024 }),
     tempPath: () => PathUtils.join(Zotero.getTempDirectory().path, `gam-openalex-${Date.now()}-${++n}.pdf`),
     remove: (path) => IOUtils.remove(path, { ignoreAbsent: true }),
+    progress: (items) => zoteroProgress(Zotero, items),
   };
 }
 
@@ -81,6 +130,36 @@ const isOffline = (e) => e?.status === 0 || e?.name === "BrowserOfflineException
   || /offline/i.test(String(e?.message || ""));
 
 let running = false;
+
+const ROW_RESULT = {
+  attached: [ROW.succeeded, "PDF attached"],
+  hosted: [ROW.succeeded, "PDF attached (OpenAlex copy)"],
+  notFound: [ROW.failed, "No open PDF"],
+  errors: [ROW.failed, "Error: see the debug output"],
+};
+
+const notDone = (progress, items) => items.forEach((item) => progress.update(item.id, ROW.failed, "Not done"));
+
+/** The progress window, or one that does nothing when the window cannot open: the run goes on. */
+function makeProgress(Zotero, deps, items) {
+  const quiet = { update() {}, cancelled: () => false, finish() {} };
+  try {
+    const progress = deps.progress?.(items);
+    if (!progress) return quiet;
+    const guard = (fn, fallback) => (...args) => {
+      try {
+        return fn(...args);
+      } catch (e) {
+        Zotero.logError(e);
+        return fallback;
+      }
+    };
+    return { update: guard(progress.update), cancelled: guard(progress.cancelled, false), finish: progress.finish };
+  } catch (e) {
+    Zotero.logError(e);
+    return quiet;
+  }
+}
 
 /**
  * Find PDF in OpenAlex for items. Returns the counts {attached, hosted, notFound, skipped, errors, stopped},
@@ -93,31 +172,48 @@ export async function findPDFs(Gam, items, deps = defaultDeps(Gam.Zotero)) {
     return null;
   }
   running = true;
+  let progress = null;
   const counts = { attached: 0, hosted: 0, notFound: 0, skipped: 0, errors: 0, stopped: null };
   try {
     const todo = items.filter((item) => canFind(Zotero, item));
     counts.skipped = items.length - todo.length;
     const key = todo.length ? await deps.getKey() : "";
     const headers = key ? { Authorization: `Bearer ${key}` } : {};
-    for (const item of todo) {
+    if (todo.length) progress = makeProgress(Zotero, deps, todo);
+    for (const [i, item] of todo.entries()) {
+      if (i > 0 && progress.cancelled()) {
+        counts.stopped = "cancelled";
+        notDone(progress, todo.slice(i));
+        break;
+      }
       // A PDF can come while the run goes (Find Full Text), or the item can go to the trash.
       if (!canFind(Zotero, item)) {
         counts.skipped += 1;
+        progress.update(item.id, ROW.failed, "Left out");
         continue;
       }
+      progress.update(item.id, ROW.processing, "Looking up");
       const result = await findOne(Zotero, item, { key, headers, deps });
       if (result.stop) {
         counts.stopped = result.stop;
+        notDone(progress, todo.slice(i));
         break;
       }
       counts[result.count] += 1;
       if (result.hosted) counts.hosted += 1;
+      progress.update(item.id, ...ROW_RESULT[result.hosted ? "hosted" : result.count]);
     }
   } finally {
     running = false;
   }
   const text = summary(counts);
-  notify(Zotero, counts.stopped ? `${STOP_TEXT[counts.stopped]}\n${text}` : text, !counts.stopped && !counts.errors);
+  const notice = counts.stopped ? `${STOP_TEXT[counts.stopped]}\n${text}` : text;
+  try {
+    progress?.finish(notice);
+  } catch (e) {
+    Zotero.logError(e);
+  }
+  notify(Zotero, notice, !counts.stopped && !counts.errors);
   return counts;
 }
 
