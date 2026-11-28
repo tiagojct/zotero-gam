@@ -78,3 +78,16 @@ test("no key gives an empty string", async () => {
   const { env } = setup();
   assert.equal(await getKey(env), "");
 });
+
+test("setKey reads the env at once: the settings window can go away while it saves", async () => {
+  const { logins, env } = setup();
+  let dead = false;
+  const deadEnv = {};
+  for (const name of Object.keys(env)) {
+    Object.defineProperty(deadEnv, name, { get() { if (dead) throw new Error("can't access dead object"); return env[name]; } });
+  }
+  const saving = setKey(deadEnv, "late");
+  dead = true;
+  assert.equal(await saving, "saved");
+  assert.equal(logins.length, 1);
+});
