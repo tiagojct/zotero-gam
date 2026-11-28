@@ -160,8 +160,9 @@ async function findOne(Zotero, item, { key, headers, deps }) {
   try {
     const response = await deps.download(hosted, path, { headers, successCodes: false, timeout: 60000, errorDelayMax: 0 });
     if (response.status !== 200) {
-      const stop = stopFor(response.status);
-      if (stop) return stop;
+      // The lookup with the same key worked: a 403 here is about this work, not the key.
+      if (response.status === 401) return { stop: "key" };
+      if (failure(response.status) === "budget") return { stop: "budget" };
       return { count: "notFound" };
     }
     if (!looksLikePDF(await deps.readHead(path))) return { count: "notFound" };

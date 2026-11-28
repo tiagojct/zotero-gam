@@ -253,3 +253,14 @@ test("a second run while one runs gives a notice and does nothing", async () => 
   await first;
   assert.notEqual(await findPDFs(Gam(Zotero), [], deps()), null);
 });
+
+test("a 403 of one OpenAlex copy counts as not found, and the run goes on", async () => {
+  const { Zotero, items } = fakeZotero();
+  const list = [1, 2].map((id) => makeItem(Zotero, items, id, { doi: `10.1/${id}` }));
+  const d = deps({ getKey: async () => KEY, download: async (url, path, opts) => { d.calls.download.push({ url, path, opts }); return { status: 403 }; } });
+  const counts = await findPDFs(Gam(Zotero), list, d);
+  assert.equal(d.calls.request.length, 2);
+  assert.equal(counts.stopped, null);
+  assert.equal(counts.notFound, 2);
+  assert.equal(d.calls.removed.length, 2);
+});
